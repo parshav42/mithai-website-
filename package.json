@@ -8,11 +8,16 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test tests/*.test.ts"
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test tests/*.test.ts",
+    "db:migrate": "node db/migrate.mjs",
+    "admin:hash-password": "node scripts/hash-admin-password.mjs"
   },
   "dependencies": {
     "lucide-react": "^1.61.0",
     "next": "^16.4.3",
+    "next-auth": "^5.0.0-beta.32",
+    "pdf-lib": "^1.17.1",
+    "pg": "^8.23.1",
     "razorpay": "^2.9.8",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
@@ -20,6 +25,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^22.15.30",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "eslint": "^10.1.0",
