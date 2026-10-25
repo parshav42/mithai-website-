@@ -32,7 +32,7 @@ function safeMoney(value: string | number | null) {
   return amount;
 }
 
-function toProduct(row: ProductRow): Product {
+function toProduct(row: ProductRow, includeStockOnHand = false): Product {
   return {
     id: row.id,
     name: row.name,
@@ -46,7 +46,7 @@ function toProduct(row: ProductRow): Product {
     priceInPaise: safeMoney(row.price_in_paise),
     originalPriceInPaise: safeMoney(row.original_price_in_paise),
     stockQuantity: row.stock_quantity,
-    stockOnHand: row.stock_on_hand,
+    ...(includeStockOnHand ? { stockOnHand: row.stock_on_hand } : {}),
     packageSize: row.package_size,
     isFeatured: row.is_featured,
     isDemonstration: false,
@@ -74,14 +74,14 @@ export async function listStorefrontProducts() {
     `${PRODUCT_SELECT} WHERE p.archived_at IS NULL
      ORDER BY p.is_featured DESC, p.name`,
   );
-  return result.rows.map(toProduct);
+  return result.rows.map((row) => toProduct(row));
 }
 
 export async function listAdminProducts() {
   const result = await getDatabasePool().query<ProductRow>(
     `${PRODUCT_SELECT} ORDER BY p.archived_at NULLS FIRST, p.updated_at DESC`,
   );
-  return result.rows.map(toProduct);
+  return result.rows.map((row) => toProduct(row, true));
 }
 
 export async function getStorefrontProductBySlug(slug: string) {
@@ -104,12 +104,13 @@ export async function listStorefrontCategories() {
 }
 
 function makeSlug(value: string) {
-  return value
+  const slug = value
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
+  return slug || `mithai-${randomUUID().slice(0, 8)}`;
 }
 
 export async function saveProduct(id: string | null, input: ProductInput) {

@@ -86,6 +86,26 @@ test("recalculates totals from trusted catalog prices", () => {
   if (result.success) assert.equal(result.checkout.subtotalInPaise, 25_000n);
 });
 
+test("rejects out-of-stock products and quantities above current stock", () => {
+  const outOfStock = {
+    ...confirmedProduct,
+    stockQuantity: 0,
+  };
+  assert.equal(
+    validateCheckoutSubmission(submission(), [outOfStock]).success,
+    false,
+  );
+
+  const limitedStock = {
+    ...confirmedProduct,
+    stockQuantity: 1,
+  };
+  assert.equal(
+    validateCheckoutSubmission(submission(), [limitedStock]).success,
+    false,
+  );
+});
+
 test("requires a valid configured WhatsApp number and prepares an encoded, unsubmitted message", () => {
   assert.equal(isWhatsAppConfigured(undefined), false);
   assert.equal(normalizeWhatsAppNumber(" +91 (98765) 43210 "), "919876543210");

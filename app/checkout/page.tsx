@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { CheckoutPage } from "@/components/checkout-page";
 import { Footer } from "@/components/footer";
 import { Navbar } from "@/components/navbar";
+import { StorefrontRefreshWatcher } from "@/components/storefront-refresh-watcher";
 import { isWhatsAppConfigured } from "@/lib/checkout";
 import { listStorefrontProducts } from "@/lib/products";
 import {
@@ -21,6 +22,7 @@ export default async function CheckoutRoute() {
   const products = await listStorefrontProducts();
   return (
     <>
+      <StorefrontRefreshWatcher />
       <Navbar />
       <CheckoutPage
         whatsappConfigured={isWhatsAppConfigured(

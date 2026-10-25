@@ -112,9 +112,11 @@ SDK](https://github.com/razorpay/razorpay-node).
 
 The PostgreSQL store is `lib/payments/order-store.ts`. Run `npm run db:migrate` with
 `DATABASE_URL_UNPOOLED` (preferred for schema changes) or `DATABASE_URL` to apply
-the additive migrations `001_admin_orders` and `002_order_notifications`. The second
-migration adds checkout idempotency and the SMS outbox. Do not run migrations against
-production until the selected Neon database is confirmed. Its durable order records
+the additive migrations `001_admin_orders`, `002_order_notifications`, and
+`003_product_management`. The second migration adds checkout idempotency and the SMS
+outbox; the third adds products, package-size snapshots, and stock reservations. Do
+not run migrations against production until the selected Neon database is confirmed.
+Its durable order records
 include:
 
 - Internal order ID and unique Razorpay receipt/provider order ID.

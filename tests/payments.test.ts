@@ -36,6 +36,7 @@ const confirmedProduct: Product = {
   availability: "available",
   priceInPaise: 12_550,
   isDemonstration: false,
+  packageSize: "500 g",
 };
 const confirmedCatalog = [confirmedProduct];
 const checkoutSubmission: CheckoutSubmission = {
@@ -290,9 +291,30 @@ test("calculates the saved and Razorpay order total from trusted catalog prices"
   assert.equal(store.order?.currency, "INR");
   assert.equal(store.order?.paymentStatus, "created");
   assert.equal(store.order?.providerOrderId, "order_test_123");
+  assert.equal(store.order?.lines[0]?.packageSize, "500 g");
+  assert.equal(store.order?.lines[0]?.unitPriceInPaise, 12_550);
   assert.equal(created[0]?.amount, 25_100);
   assert.equal(created[0]?.currency, "INR");
   assert.equal(created[0]?.partial_payment, false);
+});
+
+test("checkout uses the current server catalog price and snapshots it in the order", async () => {
+  const currentProduct = { ...confirmedProduct, priceInPaise: 13_000 };
+  const store = new TestPaymentStore();
+  const { client, created } = sdkMock();
+  const result = await createPaymentOrder(checkoutSubmission, {
+    idempotencyKey: "00000000-0000-4000-8000-000000000040",
+    environment: configuredEnvironment,
+    catalog: [currentProduct],
+    store,
+    sdkFactory: () => client,
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(store.order?.amountInPaise, 26_000);
+  assert.equal(store.order?.lines[0]?.unitPriceInPaise, 13_000);
+  assert.equal(store.order?.lines[0]?.packageSize, "500 g");
+  assert.equal(created[0]?.amount, 26_000);
 });
 
 test("repeated checkout requests with the same key reuse the saved order and provider order", async () => {

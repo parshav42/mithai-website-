@@ -15,6 +15,7 @@ import {
   type VerifiedProviderEvent,
 } from "./order-model.ts";
 import { transitionPaymentState } from "./payment-state.ts";
+import { canReserveStock } from "../inventory.ts";
 
 type OrderRow = QueryResultRow & {
   id: string;
@@ -184,8 +185,11 @@ async function reserveInventory(
     ) {
       throw new InventoryConflictError("A product changed during checkout. Refresh your cart and try again.");
     }
-    const available = product.stock_quantity - Number(product.reserved_quantity);
-    if (!Number.isInteger(available) || line.quantity > available) {
+    if (!canReserveStock(
+      product.stock_quantity,
+      Number(product.reserved_quantity),
+      line.quantity,
+    )) {
       throw new InventoryConflictError(`${line.productName} no longer has enough stock.`);
     }
   }

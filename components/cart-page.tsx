@@ -50,7 +50,7 @@ export function CartPage() {
           <p className="eyebrow">A little room for something sweet</p>
           <h1 className="section-heading mt-3 text-maroon">Your cart is empty</h1>
           <p className="mx-auto mt-4 max-w-lg text-sm leading-6 text-brown/80">
-            Browse the shop's current products to find something sweet.
+            Browse the shop&apos;s current products to find something sweet.
           </p>
           <Link
             href="/products"
