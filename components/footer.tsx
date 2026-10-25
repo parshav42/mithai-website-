@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { Container } from "@/components/container";
+import { IntroReplayButton } from "@/components/intro-replay-button";
 
-export function Footer() {
+export function Footer({ showIntroReplay = false }: { showIntroReplay?: boolean }) {
   return (
     <footer id="contact" className="bg-brown text-ivory">
       <Container className="py-12 sm:py-16">
@@ -34,6 +35,7 @@ export function Footer() {
         <div className="flex flex-col gap-2 pt-6 text-[0.68rem] leading-5 text-ivory/70 sm:flex-row sm:items-center sm:justify-between">
           <p>© {new Date().getFullYear()} Mithai House · Temporary name pending confirmation.</p>
           <p>Illustrative stock photography via Unsplash; shop photography pending.</p>
+          {showIntroReplay ? <IntroReplayButton /> : null}
         </div>
       </Container>
     </footer>

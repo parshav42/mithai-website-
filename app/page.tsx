@@ -4,6 +4,7 @@ import { AnnouncementBar } from "@/components/announcement-bar";
 import { Button } from "@/components/button";
 import { Container } from "@/components/container";
 import { Footer } from "@/components/footer";
+import { LaddooIntro } from "@/components/laddoo-intro";
 import { Navbar } from "@/components/navbar";
 import { ProductCard } from "@/components/product-card";
 import { StorefrontRefreshWatcher } from "@/components/storefront-refresh-watcher";
@@ -29,6 +30,7 @@ export default async function Home() {
   const homeProducts = featuredProducts.length ? featuredProducts : products.slice(0, 3);
   return (
     <>
+      <LaddooIntro />
       <StorefrontRefreshWatcher />
       <a
         href="#main-content"
@@ -41,12 +43,16 @@ export default async function Home() {
       <main id="main-content">
         <section id="home" className="relative overflow-hidden bg-ivory">
           <Container className="grid items-center gap-9 py-9 sm:gap-12 sm:py-12 md:min-h-[39rem] md:grid-cols-[0.92fr_1.08fr] md:gap-8 md:py-14 lg:gap-14">
-            <div className="relative z-10 max-w-xl md:py-8">
+            <div className="home-hero-copy relative z-10 max-w-xl md:py-8">
               <p className="eyebrow flex items-center gap-3">
                 <span aria-hidden="true" className="h-px w-9 bg-gold" />
                 A sweeter kind of together
               </p>
-              <h1 className="mt-5 font-display text-[clamp(3.35rem,8.1vw,6.6rem)] leading-[0.95] tracking-[-0.055em] text-maroon">
+              <h1
+                id="home-hero-heading"
+                tabIndex={-1}
+                className="home-hero-heading mt-5 font-display text-[clamp(3.35rem,8.1vw,6.6rem)] leading-[0.95] tracking-[-0.055em] text-maroon"
+              >
                 A Tradition
                 <br />
                 of Sweetness<span className="text-gold">.</span>
@@ -55,7 +61,7 @@ export default async function Home() {
                 Discover beloved Indian sweets, thoughtfully prepared for life&apos;s sweetest
                 moments.
               </p>
-              <div className="mt-8 flex flex-col gap-3 min-[420px]:flex-row min-[420px]:flex-wrap">
+              <div className="home-hero-cta mt-8 flex flex-col gap-3 min-[420px]:flex-row min-[420px]:flex-wrap">
                 <Button href="/products" className="w-full min-[420px]:w-auto">
                   Shop Mithai <ArrowRight aria-hidden="true" size={16} />
                 </Button>
@@ -253,7 +259,7 @@ export default async function Home() {
           </Container>
         </section>
       </main>
-      <Footer />
+      <Footer showIntroReplay />
     </>
   );
 }
