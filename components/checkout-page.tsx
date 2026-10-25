@@ -531,5 +531,7 @@ function isPreparedMessage(value: unknown): value is PreparedMessage {
 
 function isFieldErrors(value: unknown): value is CheckoutFieldErrors {
   if (!isRecord(value)) return false;
-  return Object.keys(value).every((field) => field in fieldLabels);
+  return Object.entries(value).every(
+    ([field, message]) => field in fieldLabels && typeof message === "string",
+  );
 }

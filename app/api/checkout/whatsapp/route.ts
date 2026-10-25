@@ -10,18 +10,19 @@ export async function POST(request: Request) {
     return Response.json({ error: "Checkout request is too large." }, { status: 413 });
   }
 
-  let body: unknown;
-  try {
-    const text = await request.text();
-    if (new TextEncoder().encode(text).byteLength > MAX_REQUEST_BYTES) {
-      return Response.json({ error: "Checkout request is too large." }, { status: 413 });
-    }
-    body = JSON.parse(text);
-  } catch {
-    return Response.json({ error: "Checkout request must contain valid JSON." }, { status: 400 });
+  const parsedBody = await readCheckoutBody(request);
+  if (!parsedBody.success) {
+    return Response.json(
+      { error: parsedBody.error },
+      { status: parsedBody.status },
+    );
   }
 
-  const result = prepareWhatsAppMessage(body, products, configuredNumber);
+  const result = prepareWhatsAppMessage(
+    parsedBody.body,
+    products,
+    configuredNumber,
+  );
   if (!result.success) {
     return Response.json(
       { error: result.error, ...(result.errors ? { errors: result.errors } : {}) },
@@ -37,4 +38,74 @@ export async function POST(request: Request) {
     },
     { status: 200 },
   );
+}
+
+async function readCheckoutBody(
+  request: Request,
+): Promise<
+  | { success: true; body: unknown }
+  | { success: false; status: 400 | 413; error: string }
+> {
+  const reader = request.body?.getReader();
+  if (!reader) {
+    return {
+      success: false,
+      status: 400,
+      error: "Checkout request must contain a JSON body.",
+    };
+  }
+
+  const chunks: Uint8Array[] = [];
+  let byteLength = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      byteLength += value.byteLength;
+      if (byteLength > MAX_REQUEST_BYTES) {
+        return {
+          success: false,
+          status: 413,
+          error: "Checkout request is too large.",
+        };
+      }
+      chunks.push(value);
+    }
+  } catch {
+    return {
+      success: false,
+      status: 400,
+      error: "Checkout request body could not be read.",
+    };
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(byteLength);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  let text: string;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return {
+      success: false,
+      status: 400,
+      error: "Checkout request must contain valid UTF-8 JSON.",
+    };
+  }
+
+  try {
+    return { success: true, body: JSON.parse(text) };
+  } catch {
+    return {
+      success: false,
+      status: 400,
+      error: "Checkout request must contain valid JSON.",
+    };
+  }
 }

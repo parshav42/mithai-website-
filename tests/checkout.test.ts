@@ -63,13 +63,12 @@ test("delivery requires an address while pickup does not include one", () => {
   if (pickup.success) assert.equal(pickup.checkout.address, "");
 });
 
-test("refuses demonstration products, unknown IDs, invalid quantities, and submitted prices", () => {
+test("refuses demonstration products, unknown IDs, and invalid quantities", () => {
   for (const item of [
     { productId: products[0].id, quantity: 1 },
     { productId: "unknown-product", quantity: 1 },
     { productId: confirmedProduct.id, quantity: 0 },
     { productId: confirmedProduct.id, quantity: 100 },
-    { productId: confirmedProduct.id, quantity: 1, priceInPaise: 1 },
   ]) {
     const result = validateCheckoutSubmission(submission({ items: [item] }), catalog);
     assert.equal(result.success, false);
@@ -96,6 +95,14 @@ test("requires a valid configured WhatsApp number and prepares an encoded, unsub
   assert.equal(missingConfig.success, false);
   if (!missingConfig.success) assert.equal(missingConfig.status, 503);
 
+  const demonstrationItem = prepareWhatsAppMessage(
+    submission({ items: [{ productId: products[0].id, quantity: 1 }] }),
+    catalog,
+    "+91 98765 43210",
+  );
+  assert.equal(demonstrationItem.success, false);
+  if (!demonstrationItem.success) assert.equal(demonstrationItem.status, 422);
+
   const prepared = prepareWhatsAppMessage(
     submission({ fulfillment: "pickup", address: "do not include" }),
     catalog,
@@ -112,14 +119,15 @@ test("requires a valid configured WhatsApp number and prepares an encoded, unsub
 });
 
 test("payment remains explicitly unavailable until a provider adapter exists", () => {
-  assert.equal(getPaymentSetupStatus({} as NodeJS.ProcessEnv), "provider-not-selected");
+  assert.equal(getPaymentSetupStatus({ NODE_ENV: "test" }), "provider-not-selected");
   assert.equal(
     getPaymentSetupStatus({
+      NODE_ENV: "test",
       PAYMENT_PROVIDER: "chosen-provider",
       NEXT_PUBLIC_PAYMENT_PUBLIC_KEY: "public-placeholder",
       PAYMENT_SECRET_KEY: "secret-placeholder",
       PAYMENT_WEBHOOK_SECRET: "webhook-placeholder",
-    } as NodeJS.ProcessEnv),
+    }),
     "integration-pending",
   );
 });

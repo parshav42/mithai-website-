@@ -164,7 +164,7 @@ export function validateCheckoutSubmission(
     checkout: {
       customerName,
       phone,
-      fulfillment,
+      fulfillment: fulfillment === "pickup" ? "pickup" : "delivery",
       address: fulfillment === "delivery" ? address : "",
       instructions,
       lines,
