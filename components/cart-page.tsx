@@ -180,17 +180,16 @@ export function CartPage() {
                 are excluded.
               </p>
             )}
-            <button
-              type="button"
-              disabled
-              className="mt-6 min-h-12 w-full border border-brown/30 bg-brown/10 px-4 text-sm font-semibold text-brown/60"
+            <Link
+              href="/checkout"
+              className="mt-6 inline-flex min-h-12 w-full items-center justify-center border border-maroon bg-maroon px-4 text-sm font-semibold text-ivory hover:bg-brown"
             >
-              Checkout not available
-            </button>
+              Review checkout options
+            </Link>
             <p className="mt-3 text-xs leading-5 text-brown/75">
               {unavailableItems.length > 0
-                ? "Items with unconfirmed prices cannot be purchased. Checkout will be enabled after shop details are configured."
-                : "Checkout and payments have not been set up."}
+                ? "Items with unconfirmed prices cannot be ordered. Review checkout options for details."
+                : "WhatsApp enquiries require shop configuration. Online payments are not set up."}
             </p>
             <Link
               href="/products"

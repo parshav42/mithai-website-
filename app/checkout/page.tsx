@@ -5,6 +5,8 @@ import { Navbar } from "@/components/navbar";
 import { isWhatsAppConfigured } from "@/lib/checkout";
 import { getPaymentSetupStatus } from "@/lib/payments/provider";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Checkout | Mithai House",
   description: "Review your sweets and prepare an order enquiry for the shop.",

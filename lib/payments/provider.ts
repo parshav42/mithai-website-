@@ -23,7 +23,10 @@ export interface PaymentProvider {
   verifyPayment(verification: PaymentVerification): Promise<boolean>;
 }
 
-export type PaymentSetupStatus = "provider-not-selected" | "credentials-missing";
+export type PaymentSetupStatus =
+  | "provider-not-selected"
+  | "credentials-missing"
+  | "integration-pending";
 
 export function getPaymentSetupStatus(
   environment: NodeJS.ProcessEnv = process.env,
@@ -36,5 +39,5 @@ export function getPaymentSetupStatus(
   ) {
     return "credentials-missing";
   }
-  return "provider-not-selected";
+  return "integration-pending";
 }

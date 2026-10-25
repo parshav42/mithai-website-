@@ -91,7 +91,9 @@ export default async function ProductPage({
                 <AddToCartButton product={product} />
               </div>
               <p className="mt-5 text-xs leading-5 text-brown/65">
-                Cart totals are informational only. Checkout and payments are not available.
+                Cart totals are informational only. Checkout availability depends on
+                confirmed shop products and contact configuration; online payments are
+                not yet set up.
               </p>
             </div>
           </div>

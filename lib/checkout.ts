@@ -2,8 +2,8 @@ import {
   formatPrice,
   isPurchasable,
   type Product,
-} from "../data/products";
-import { MAX_CART_QUANTITY } from "./cart";
+} from "../data/products.ts";
+import { MAX_CART_QUANTITY } from "./cart.ts";
 
 export type FulfillmentMethod = "delivery" | "pickup";
 export type CheckoutField =
@@ -127,9 +127,10 @@ export function validateCheckoutSubmission(
       if (
         !isRecord(rawItem) ||
         typeof rawItem.productId !== "string" ||
+        typeof rawItem.quantity !== "number" ||
         !Number.isInteger(rawItem.quantity) ||
-        (rawItem.quantity as number) < 1 ||
-        (rawItem.quantity as number) > MAX_CART_QUANTITY
+        rawItem.quantity < 1 ||
+        rawItem.quantity > MAX_CART_QUANTITY
       ) {
         errors.items = "One or more cart quantities are invalid.";
         continue;
@@ -148,7 +149,7 @@ export function validateCheckoutSubmission(
         continue;
       }
 
-      const quantity = rawItem.quantity as number;
+      const quantity = rawItem.quantity;
       lines.push({ product, quantity });
       subtotalInPaise += BigInt(product.priceInPaise) * BigInt(quantity);
     }

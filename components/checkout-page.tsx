@@ -83,7 +83,7 @@ export function CheckoutPage({
       customerName,
       phone,
       fulfillment,
-      address,
+      address: fulfillment === "delivery" ? address : "",
       instructions,
       items: cartLines.map(({ product, quantity }) => ({
         productId: product.id,
@@ -370,7 +370,9 @@ export function CheckoutPage({
                   <p className="mt-2 text-sm leading-6 text-brown/75">
                     {paymentSetupStatus === "provider-not-selected"
                       ? "Unavailable until the shop chooses a payment provider and completes integration."
-                      : "Unavailable until the shop supplies provider credentials and the payment integration is completed."}
+                      : paymentSetupStatus === "credentials-missing"
+                        ? "Unavailable until the shop supplies provider credentials and the payment integration is completed."
+                        : "Provider credentials are configured, but payment processing is still unavailable until the adapter and verification flow are completed."}
                   </p>
                   <button
                     type="button"
