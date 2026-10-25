@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import Script from "next/script";
@@ -93,6 +93,7 @@ export function CheckoutPage({
   const [isStartingPayment, setIsStartingPayment] = useState(false);
   const [paymentMessage, setPaymentMessage] = useState("");
   const [paymentScriptError, setPaymentScriptError] = useState(false);
+  const checkoutKeys = useRef(new Map<string, string>());
 
   if (!isReady) {
     return (
@@ -159,9 +160,15 @@ export function CheckoutPage({
 
     setIsStartingPayment(true);
     try {
+      const requestKey = JSON.stringify(submission);
+      let idempotencyKey = checkoutKeys.current.get(requestKey);
+      if (!idempotencyKey) {
+        idempotencyKey = crypto.randomUUID();
+        checkoutKeys.current.set(requestKey, idempotencyKey);
+      }
       const response = await fetch("/api/payments/orders", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
         body: JSON.stringify(submission),
       });
       const result: unknown = await response.json();

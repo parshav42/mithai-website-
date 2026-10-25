@@ -5,6 +5,11 @@ import { readRequestText } from "@/lib/payments/request-body";
 import { getRazorpayEnvironment } from "@/lib/payments/provider";
 
 export async function POST(request: Request) {
+  const headerKey = request.headers.get("Idempotency-Key");
+  if (!headerKey || !/^[0-9a-f-]{36}$/i.test(headerKey)) {
+    return Response.json({ error: "A valid checkout request key is required." }, { status: 400 });
+  }
+  const idempotencyKey = headerKey;
   const parsedBody = await readRequestText(request);
   if (!parsedBody.success) {
     return Response.json(
@@ -24,6 +29,7 @@ export async function POST(request: Request) {
   }
 
   const result = await createPaymentOrder(submission, {
+    idempotencyKey,
     environment: getRazorpayEnvironment(),
     catalog: products,
     store: getPaymentOrderStore(),

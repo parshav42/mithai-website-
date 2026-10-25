@@ -54,6 +54,7 @@ export type PersistedPaymentOrder = {
   refundedAmountInPaise: number;
   createdAt: Date;
   updatedAt: Date;
+  idempotencyKey: string | null;
 };
 
 export type NewPaymentOrder = Omit<
@@ -70,6 +71,7 @@ export type NewPaymentOrder = Omit<
 > & {
   orderStatus: "awaiting_payment";
   paymentStatus: "created";
+  idempotencyKey: string;
 };
 
 export type VerifiedProviderEvent = {

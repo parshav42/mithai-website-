@@ -24,6 +24,7 @@ export type CreatePaymentOrderResult =
 export async function createPaymentOrder(
   submission: unknown,
   dependencies: {
+    idempotencyKey: string;
     environment: RazorpayEnvironment;
     catalog: readonly Product[];
     store: PaymentOrderStore | null;
@@ -40,6 +41,9 @@ export async function createPaymentOrder(
   }
 
   const { environment, store } = dependencies;
+  if (!/^[0-9a-f-]{36}$/i.test(dependencies.idempotencyKey)) {
+    return { success: false, status: 400, error: "A valid checkout request key is required." };
+  }
   if (
     !environment.NEXT_PUBLIC_RAZORPAY_KEY_ID ||
     !environment.RAZORPAY_KEY_SECRET ||
@@ -88,6 +92,7 @@ export async function createPaymentOrder(
       currency: "INR",
       orderStatus: "awaiting_payment",
       paymentStatus: "created",
+      idempotencyKey: dependencies.idempotencyKey,
     });
     orderId = savedOrder.id;
     if (
@@ -101,6 +106,16 @@ export async function createPaymentOrder(
       status: 502,
       error: "The saved order does not match the validated checkout. No payment was started.",
     };
+    }
+
+    if (savedOrder.providerOrderId) {
+      return {
+        success: true,
+        providerOrderId: savedOrder.providerOrderId,
+        amountInPaise: savedOrder.amountInPaise,
+        currency: "INR",
+        keyId: environment.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+      };
     }
 
     const provider = createRazorpayPaymentProvider({

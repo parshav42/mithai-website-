@@ -33,6 +33,7 @@ type OrderRow = QueryResultRow & {
   payment_status: PaymentStatus;
   created_at: Date;
   updated_at: Date;
+  idempotency_key: string | null;
 };
 
 type ItemRow = QueryResultRow & {
@@ -75,6 +76,7 @@ function toOrder(row: OrderRow, itemRows: ItemRow[]): PersistedPaymentOrder {
     paymentStatus: row.payment_status,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    idempotencyKey: row.idempotency_key,
   };
 }
 
@@ -157,8 +159,9 @@ class PostgresPaymentOrderStore implements PaymentOrderStore {
         `INSERT INTO orders (
            id, receipt, customer_name, customer_phone, fulfillment_method,
            delivery_address, instructions, amount_in_paise, currency,
-           order_status, payment_status
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+           order_status, payment_status, idempotency_key
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+         ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
          RETURNING *`,
         [
           id,
@@ -172,8 +175,28 @@ class PostgresPaymentOrderStore implements PaymentOrderStore {
           input.currency,
           input.orderStatus,
           input.paymentStatus,
+          input.idempotencyKey,
         ],
       );
+      if (result.rowCount === 0) {
+        const existingResult = await client.query<OrderRow>(
+          `SELECT * FROM orders WHERE idempotency_key = $1 FOR UPDATE`,
+          [input.idempotencyKey],
+        );
+        const existing = existingResult.rows[0];
+        if (!existing) throw new Error("Idempotent checkout order could not be loaded.");
+        const existingItems = await findItems(client, existing.id);
+        const sameRequest = existing.customer_name === input.customerName &&
+          existing.customer_phone === input.customerPhone &&
+          safeMoney(existing.amount_in_paise) === input.amountInPaise &&
+          existingItems.length === input.lines.length &&
+          existingItems.every((item, index) => item.product_id === input.lines[index]?.productId &&
+            item.quantity === input.lines[index]?.quantity &&
+            safeMoney(item.unit_price_in_paise) === input.lines[index]?.unitPriceInPaise);
+        if (!sameRequest) throw new Error("Checkout key was already used for different order details.");
+        await client.query("COMMIT");
+        return toOrder(existing, existingItems);
+      }
       for (const line of input.lines) {
         await client.query(
           `INSERT INTO order_items (
