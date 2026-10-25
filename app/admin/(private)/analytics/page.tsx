@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { AdminEmptyState, AdminPageHeading } from "@/components/admin/admin-shell";
-import { RevenueBars } from "@/components/admin/analytics-charts";
+import { OrderBars, RevenueBars } from "@/components/admin/analytics-charts";
 import { formatPrice } from "@/data/products";
 import { dateRangeForPreset, parseCustomDateRange } from "@/lib/admin/date-range";
 import { getAnalytics } from "@/lib/admin/metrics";
@@ -15,17 +15,21 @@ export default async function AdminAnalyticsPage({ searchParams }: { searchParam
   const preset = typeof query.range === "string" && presets.includes(query.range as (typeof presets)[number])
     ? query.range as (typeof presets)[number]
     : "last30";
-  let range;
+  let range: ReturnType<typeof dateRangeForPreset> | null;
   if (preset === "custom" && typeof query.from === "string" && typeof query.to === "string") {
     range = parseCustomDateRange(query.from, query.to);
+  } else if (preset === "custom") {
+    range = null;
   } else {
-    range = dateRangeForPreset(preset === "custom" ? "last30" : preset);
+    range = dateRangeForPreset(preset);
   }
-  const analytics = await getAnalytics(range);
-  const hasData =
-    analytics.daily.length > 0 ||
-    analytics.paymentBreakdown.length > 0 ||
-    analytics.fulfillmentBreakdown.length > 0;
+  const analytics = range ? await getAnalytics(range) : null;
+  const hasData = Boolean(
+    analytics &&
+      (analytics.daily.length > 0 ||
+        analytics.paymentBreakdown.length > 0 ||
+        analytics.fulfillmentBreakdown.length > 0),
+  );
 
   return (
     <>
@@ -45,7 +49,9 @@ export default async function AdminAnalyticsPage({ searchParams }: { searchParam
         <div className="flex items-end lg:col-span-2"><button className="min-h-10 bg-maroon px-5 font-semibold text-ivory hover:bg-brown">Apply</button></div>
       </form>
 
-      {!hasData ? (
+      {!range ? (
+        <AdminEmptyState>Choose both a start date and an end date to view a custom report range.</AdminEmptyState>
+      ) : !hasData || !analytics ? (
         <AdminEmptyState>There is not enough persisted sales data to show meaningful analytics. Metrics will appear after real, verified orders exist.</AdminEmptyState>
       ) : (
         <>
@@ -63,6 +69,7 @@ export default async function AdminAnalyticsPage({ searchParams }: { searchParam
           </section>
           <section className="grid gap-5 xl:grid-cols-2">
             <RevenueBars title="Daily revenue & order trend" rows={analytics.daily} />
+            <OrderBars title="Order volume over time" rows={analytics.daily} />
             <RevenueBars title="Weekly revenue" rows={analytics.weekly} />
             <RevenueBars title="Monthly revenue" rows={analytics.monthly} />
             <article className="border border-gold/30 bg-white p-5">
