@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import Script from "next/script";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import { Container } from "@/components/container";
 import { useCart } from "@/components/cart-provider";
@@ -15,10 +16,45 @@ import {
 import {
   type CheckoutField,
   type CheckoutFieldErrors,
+  type CheckoutSubmission,
   type FulfillmentMethod,
   validateCheckoutSubmission,
 } from "@/lib/checkout";
 import type { PaymentSetupStatus } from "@/lib/payments/provider";
+
+type RazorpayCheckoutResult = {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+};
+
+type RazorpayOrderResponse = {
+  providerOrderId: string;
+  amountInPaise: number;
+  currency: "INR";
+  keyId: string;
+};
+
+type RazorpayCheckoutOptions = {
+  key: string;
+  amount: number;
+  currency: "INR";
+  name: string;
+  description: string;
+  order_id: string;
+  prefill: { name: string; contact: string };
+  handler: (result: RazorpayCheckoutResult) => void | Promise<void>;
+  modal: { ondismiss: () => void };
+  theme: { color: string };
+};
+
+declare global {
+  interface Window {
+    Razorpay?: new (options: RazorpayCheckoutOptions) => {
+      open: () => void;
+    };
+  }
+}
 
 type CheckoutPageProps = {
   whatsappConfigured: boolean;
@@ -54,6 +90,9 @@ export function CheckoutPage({
   const [requestError, setRequestError] = useState("");
   const [isPreparing, setIsPreparing] = useState(false);
   const [preparedMessage, setPreparedMessage] = useState<PreparedMessage | null>(null);
+  const [isStartingPayment, setIsStartingPayment] = useState(false);
+  const [paymentMessage, setPaymentMessage] = useState("");
+  const [paymentScriptError, setPaymentScriptError] = useState(false);
 
   if (!isReady) {
     return (
@@ -78,7 +117,7 @@ export function CheckoutPage({
   const unavailableItems = cartLines.filter((line) => !isPurchasable(line.product));
   const canPrepare = cartLines.length > 0 && unavailableItems.length === 0;
 
-  function buildSubmission() {
+  function buildSubmission(): CheckoutSubmission {
     return {
       customerName,
       phone,
@@ -90,6 +129,119 @@ export function CheckoutPage({
         quantity,
       })),
     };
+  }
+
+  async function handleRazorpayPayment() {
+    setPaymentMessage("");
+    setRequestError("");
+    const submission = buildSubmission();
+    const validation = validateCheckoutSubmission(submission, products);
+    if (!validation.success) {
+      setErrors(validation.errors);
+      return;
+    }
+    setErrors({});
+
+    if (!canPrepare || paymentSetupStatus !== "ready") {
+      setPaymentMessage(
+        "Online payment is unavailable until confirmed products and persistent order storage are configured.",
+      );
+      return;
+    }
+    if (!window.Razorpay) {
+      setPaymentMessage(
+        paymentScriptError
+          ? "Razorpay Checkout could not be loaded. No payment was started."
+          : "Razorpay Checkout is still loading. Please try again.",
+      );
+      return;
+    }
+
+    setIsStartingPayment(true);
+    try {
+      const response = await fetch("/api/payments/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(submission),
+      });
+      const result: unknown = await response.json();
+      if (!response.ok || !isRazorpayOrderResponse(result)) {
+        const responseData = isRecord(result) ? result : {};
+        setPaymentMessage(
+          typeof responseData.error === "string"
+            ? responseData.error
+            : "The payment order could not be prepared. No payment was started.",
+        );
+        return;
+      }
+
+      const RazorpayCheckout = window.Razorpay;
+      if (!RazorpayCheckout) {
+        setPaymentMessage(
+          "Razorpay Checkout could not be loaded. The payment order was prepared but no payment was started. Contact the shop before retrying.",
+        );
+        return;
+      }
+
+      const checkout = new RazorpayCheckout({
+        key: result.keyId,
+        amount: result.amountInPaise,
+        currency: result.currency,
+        name: "Mithai House",
+        description: "Mithai order",
+        order_id: result.providerOrderId,
+        prefill: { name: customerName.trim(), contact: phone.trim() },
+        theme: { color: "#6B1827" },
+        modal: {
+          ondismiss: () => {
+            setPaymentMessage(
+              "The Razorpay window was closed. Payment status is not confirmed; please check with the shop before trying again.",
+            );
+          },
+        },
+        handler: async (payment) => {
+          setPaymentMessage("Verifying payment with the shop server…");
+          try {
+            const verificationResponse = await fetch("/api/payments/verify", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                providerOrderId: payment.razorpay_order_id,
+                providerPaymentId: payment.razorpay_payment_id,
+                signature: payment.razorpay_signature,
+              }),
+            });
+            const verification: unknown = await verificationResponse.json();
+            const responseData = isRecord(verification) ? verification : {};
+            if (!verificationResponse.ok) {
+              setPaymentMessage(
+                typeof responseData.error === "string"
+                  ? responseData.error
+                  : "Payment verification is pending. This browser response is not an order confirmation.",
+              );
+              return;
+            }
+
+            setPaymentMessage(
+              responseData.paymentStatus === "captured"
+                ? "Payment was verified by Razorpay. The shop must still confirm your order."
+                : "Payment is not captured yet. Your order is not confirmed; the shop will need to verify its status.",
+            );
+          } catch {
+            setPaymentMessage(
+              "Payment verification could not be reached. Your payment status is unknown; contact the shop before retrying.",
+            );
+          }
+        },
+      });
+      checkout.open();
+    } catch {
+      setPaymentMessage(
+        "The payment request could not be completed. Check with the shop before trying again.",
+      );
+    } finally {
+      setIsStartingPayment(false);
+    }
   }
 
   async function handlePrepareMessage(event: FormEvent<HTMLFormElement>) {
@@ -170,6 +322,13 @@ export function CheckoutPage({
   return (
     <main id="main-content" className="bg-white">
       <Container className="section-space">
+        {paymentSetupStatus === "ready" && (
+          <Script
+            src="https://checkout.razorpay.com/v1/checkout.js"
+            strategy="afterInteractive"
+            onError={() => setPaymentScriptError(true)}
+          />
+        )}
         <Link
           href="/cart"
           className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-maroon underline decoration-gold underline-offset-4 hover:text-brown"
@@ -366,21 +525,37 @@ export function CheckoutPage({
                   </button>
                 </div>
                 <div className="pt-5">
-                  <h3 className="font-semibold text-brown">Online payment</h3>
+                  <h3 className="font-semibold text-brown">Pay online with Razorpay</h3>
                   <p className="mt-2 text-sm leading-6 text-brown/75">
-                    {paymentSetupStatus === "provider-not-selected"
-                      ? "Unavailable until the shop chooses a payment provider and completes integration."
-                      : paymentSetupStatus === "credentials-missing"
-                        ? "Unavailable until the shop supplies provider credentials and the payment integration is completed."
-                        : "Provider credentials are configured, but payment processing is still unavailable until the adapter and verification flow are completed."}
+                    {paymentSetupStatus === "credentials-missing"
+                      ? "Not yet available. Razorpay test or live credentials, confirmed product prices and availability, and persistent order storage are required."
+                      : paymentSetupStatus === "catalog-unconfirmed"
+                        ? "Not yet available. The shop must confirm product prices and availability before the server can create Razorpay orders."
+                        : paymentSetupStatus === "order-storage-unavailable"
+                          ? "Not yet available. Persistent order storage and confirmed product prices are required before Razorpay orders can be created."
+                          : "Razorpay Checkout is available. Payment is verified on the server; the shop must separately confirm the order."}
                   </p>
                   <button
                     type="button"
-                    disabled
-                    className="mt-4 min-h-11 w-full border border-brown/25 bg-brown/5 px-4 text-sm font-semibold text-brown/50 sm:w-auto"
+                    disabled={
+                      paymentSetupStatus !== "ready" ||
+                      !canPrepare ||
+                      isStartingPayment
+                    }
+                    onClick={handleRazorpayPayment}
+                    className="mt-4 min-h-11 w-full border border-brown/25 bg-brown/5 px-4 text-sm font-semibold text-brown/50 enabled:border-maroon enabled:bg-maroon enabled:text-ivory enabled:hover:bg-brown disabled:cursor-not-allowed sm:w-auto"
                   >
-                    Online payment not set up
+                    {isStartingPayment
+                      ? "Preparing secure payment…"
+                      : paymentSetupStatus === "ready"
+                        ? "Continue to Razorpay"
+                        : "Razorpay payments not available"}
                   </button>
+                  {paymentMessage && (
+                    <p className="mt-3 text-sm leading-6 text-brown" role="status">
+                      {paymentMessage}
+                    </p>
+                  )}
                 </div>
               </fieldset>
             </form>
@@ -526,6 +701,18 @@ function isPreparedMessage(value: unknown): value is PreparedMessage {
     value.whatsappUrl.startsWith("https://wa.me/") &&
     typeof value.message === "string" &&
     typeof value.subtotalInPaise === "string"
+  );
+}
+
+function isRazorpayOrderResponse(value: unknown): value is RazorpayOrderResponse {
+  return (
+    isRecord(value) &&
+    typeof value.providerOrderId === "string" &&
+    typeof value.amountInPaise === "number" &&
+    Number.isSafeInteger(value.amountInPaise) &&
+    value.amountInPaise > 0 &&
+    value.currency === "INR" &&
+    typeof value.keyId === "string"
   );
 }
 

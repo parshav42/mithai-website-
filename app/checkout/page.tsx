@@ -3,7 +3,12 @@ import { CheckoutPage } from "@/components/checkout-page";
 import { Footer } from "@/components/footer";
 import { Navbar } from "@/components/navbar";
 import { isWhatsAppConfigured } from "@/lib/checkout";
-import { getPaymentSetupStatus } from "@/lib/payments/provider";
+import { products } from "@/data/products";
+import {
+  getPaymentSetupStatus,
+  getRazorpayEnvironment,
+} from "@/lib/payments/provider";
+import { getPaymentOrderStore } from "@/lib/payments/order-store";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +25,11 @@ export default function CheckoutRoute() {
         whatsappConfigured={isWhatsAppConfigured(
           process.env.NEXT_PUBLIC_SHOP_WHATSAPP_NUMBER,
         )}
-        paymentSetupStatus={getPaymentSetupStatus()}
+        paymentSetupStatus={getPaymentSetupStatus(
+          getRazorpayEnvironment(),
+          products,
+          getPaymentOrderStore() !== null,
+        )}
       />
       <Footer />
     </>

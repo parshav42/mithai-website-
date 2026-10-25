@@ -7,7 +7,6 @@ import {
   prepareWhatsAppMessage,
   validateCheckoutSubmission,
 } from "../lib/checkout.ts";
-import { getPaymentSetupStatus } from "../lib/payments/provider.ts";
 
 const confirmedProduct: Product = {
   ...products[0],
@@ -116,18 +115,4 @@ test("requires a valid configured WhatsApp number and prepares an encoded, unsub
     assert.doesNotMatch(prepared.message, /do not include/);
     assert.match(prepared.message, /not confirmed/);
   }
-});
-
-test("payment remains explicitly unavailable until a provider adapter exists", () => {
-  assert.equal(getPaymentSetupStatus({ NODE_ENV: "test" }), "provider-not-selected");
-  assert.equal(
-    getPaymentSetupStatus({
-      NODE_ENV: "test",
-      PAYMENT_PROVIDER: "chosen-provider",
-      NEXT_PUBLIC_PAYMENT_PUBLIC_KEY: "public-placeholder",
-      PAYMENT_SECRET_KEY: "secret-placeholder",
-      PAYMENT_WEBHOOK_SECRET: "webhook-placeholder",
-    }),
-    "integration-pending",
-  );
 });

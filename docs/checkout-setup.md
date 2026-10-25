@@ -19,26 +19,86 @@ and availability. Therefore, WhatsApp order preparation is intentionally blocked
 until real products, prices, and availability are configured. No customer order is
 persisted by this application.
 
-## Online payments
+## Razorpay payment foundation
 
-No payment provider has been selected or integrated. The checkout displays online
-payment as unavailable; it does not create provider orders, accept redirects as
-payment proof, or mark an order paid. The `PaymentProvider` interface in
-`lib/payments/provider.ts` is the integration boundary. A provider adapter must
-create orders using server-calculated totals and verify provider signatures before
-any future order can be considered paid.
+Razorpay-specific server code is isolated behind `PaymentProvider` in
+`lib/payments/provider.ts` and the official [`razorpay` Node SDK](https://github.com/razorpay/razorpay-node)
+adapter in `lib/payments/razorpay.ts`. No browser code receives the API secret.
 
-After selecting a provider, configure its public key as
-`NEXT_PUBLIC_PAYMENT_PUBLIC_KEY`, its secret as `PAYMENT_SECRET_KEY`, and its webhook
-secret as `PAYMENT_WEBHOOK_SECRET` in deployment environment settings. Set
-`PAYMENT_PROVIDER` to the chosen provider identifier only after an adapter and
-verification flow have been implemented and reviewed. These placeholder variables
-do not enable payments by themselves. Never commit real credentials.
+The intended flow is:
 
-## Order persistence and statuses
+1. The browser submits product identifiers, quantities, and checkout details to
+   `POST /api/payments/orders`. It does not submit a trusted total.
+2. The server validates customer fields, re-reads current catalog entries, rejects
+   demo/unconfirmed or unavailable products, and calculates INR in integer paise.
+3. A persistent order must be written before the server creates a Razorpay order.
+   The server response then gives Razorpay Checkout the server-created provider order
+   ID, amount, INR currency, and public key ID.
+4. Razorpay Checkout returns payment identifiers and a signature to the browser.
+   `POST /api/payments/verify` validates the signature server-side, fetches the
+   payment from Razorpay, and compares its order ID, amount, and currency to the
+   persisted order. A browser redirect or callback alone never marks an order paid.
+5. `POST /api/payments/webhook` verifies `X-Razorpay-Signature` against the exact raw
+   request body using the webhook secret. The database must uniquely record
+   `X-Razorpay-Event-Id` and apply the event atomically to make retries idempotent.
+   `payment.captured`, `payment.failed`, and `payment.authorized` events update the
+   payment state. A captured payment leaves the shop order in
+   `awaiting_shop_confirmation`; payment success does not confirm fulfillment.
 
-There is no database or order-management integration. Cart contents are saved in the
-customer's browser. A prepared WhatsApp message is not an order record. The site
-cannot observe whether the customer sends that message or whether the shop confirms
-it. Payment pending, successful, failed, or cancelled statuses cannot be truthfully
-recorded until a server-side provider integration and persistent order store exist.
+The server endpoints and SDK adapter are prepared, but **live payment creation is
+disabled** until all guard conditions exist. `getPaymentOrderStore()` currently
+returns `null` because this project has no database adapter. The product catalog
+also contains demonstration entries only. The endpoints therefore cannot create
+real Razorpay orders, even if keys are supplied. No credentials are configured here.
+
+### Environment variables
+
+Copy `.env.example` to `.env.local` for local development, and use deployment
+environment settings in production:
+
+- `NEXT_PUBLIC_RAZORPAY_KEY_ID`: public Razorpay key ID (`rzp_test_...` during testing).
+- `RAZORPAY_KEY_SECRET`: private API key secret, server-only.
+- `RAZORPAY_WEBHOOK_SECRET`: private secret configured for the webhook endpoint,
+  server-only and separate from the API key secret.
+
+The shop owner must create/authorize a Razorpay account, obtain its test keys from
+the Razorpay dashboard, select test mode for development, and configure a webhook
+to `/api/payments/webhook` with the same webhook secret used by the deployment.
+Never commit real keys or use live keys for automated tests. Automated tests use a
+mock SDK client and local signature fixtures; they do not contact Razorpay or charge
+money.
+
+Official integration guidance: [Razorpay Standard Checkout integration
+steps](https://razorpay.com/docs/payments/payment-gateway/web-integration/standard/integration-steps/),
+[Orders API](https://razorpay.com/docs/api/orders/create/), and [official Node
+SDK](https://github.com/razorpay/razorpay-node).
+
+### Database and order model
+
+There is no persistent database configured. The integration point is
+`PaymentOrderStore` in `lib/payments/order-model.ts`; implement it with PostgreSQL
+(or another transactional database) before enabling payment endpoints. Its durable
+order records must include:
+
+- Internal order ID and unique Razorpay receipt/provider order ID.
+- Customer name, phone, fulfillment choice, delivery address when applicable, and
+  optional instructions, with a business-approved retention policy.
+- Immutable line snapshots: product ID/name, quantity, unit price in paise, total in
+  paise, and currency (`INR`).
+- Separate order and payment status, provider payment ID, timestamps, and a unique
+  webhook event ID table/index for deduplication.
+
+Use a transaction for idempotent event application and status transitions. Never
+store card data, Razorpay secrets, or customer checkout data in browser local storage.
+Only the cart remains browser-local. Do not replace the store with in-memory server
+state: it is not durable across restarts or instances.
+
+### Why ordering is not live
+
+The owner must provide confirmed product IDs, prices, availability, currency/pack
+details and fulfillment rules. The business must configure its Razorpay account and
+test/live credentials, and the application must receive a real durable order-store
+adapter with the required uniqueness and transaction behavior. Shop confirmation,
+delivery policies, privacy/retention decisions, and webhook deployment URL must also
+be finalized. Until then, the website cannot accept real orders, record payment
+status durably, or claim an order is confirmed.
