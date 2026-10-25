@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState } from "react";
-import Link from "next/link";
 import { Menu, X } from "lucide-react";
 
 const links = [
@@ -46,14 +45,14 @@ export function MobileNavigation() {
           onKeyDown={handleEscape}
         >
           {links.map((link) => (
-            <Link
+            <a
               key={link.href}
               href={link.href}
               className="block border-b border-gold/15 px-4 py-3.5 text-sm text-brown transition-colors last:border-0 hover:bg-white hover:text-maroon"
               onClick={() => setIsOpen(false)}
             >
               {link.label}
-            </Link>
+            </a>
           ))}
         </nav>
       )}

@@ -23,7 +23,7 @@ export type Product = {
   isDemonstration: boolean;
 };
 
-export const products = [
+export const products: readonly Product[] = [
   {
     id: "demo-kaju-katli",
     name: "Kaju Katli",
@@ -102,7 +102,7 @@ export const products = [
     priceInPaise: null,
     isDemonstration: true,
   },
-] as const satisfies readonly Product[];
+];
 
 export function getProductBySlug(slug: string) {
   return products.find((product) => product.slug === slug);
@@ -112,22 +112,27 @@ export function getProductById(id: string) {
   return products.find((product) => product.id === id);
 }
 
-export function formatPrice(priceInPaise: number) {
-  return new Intl.NumberFormat("en-IN", {
+export function formatPrice(priceInPaise: number | bigint) {
+  const exactPaise = typeof priceInPaise === "bigint" ? priceInPaise : BigInt(priceInPaise);
+  const rupees = exactPaise / 100n;
+  const paise = (exactPaise % 100n).toString().padStart(2, "0");
+  const formattedRupees = new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency: "INR",
-    minimumFractionDigits: 2,
-  }).format(priceInPaise / 100);
+    maximumFractionDigits: 0,
+  }).format(rupees);
+  return `${formattedRupees}.${paise}`;
 }
 
 export function isPurchasable(
   product: Product,
 ): product is Product & { priceInPaise: number } {
   return (
+    !product.isDemonstration &&
     product.availability === "available" &&
     product.priceInPaise !== null &&
     Number.isSafeInteger(product.priceInPaise) &&
     product.priceInPaise > 0 &&
-    product.priceInPaise <= Math.floor(Number.MAX_SAFE_INTEGER / 99)
+    product.priceInPaise <= Number.MAX_SAFE_INTEGER
   );
 }

@@ -14,7 +14,7 @@ export function Navbar() {
     <header className="relative z-20 border-b border-gold/30 bg-ivory">
       <div className="container-width flex min-h-[5.5rem] items-center justify-between gap-5 sm:min-h-24">
         <Link
-          href="#home"
+          href="/#home"
           aria-label="Mithai House home"
           className="group flex min-w-0 items-center gap-3.5"
         >
@@ -36,17 +36,17 @@ export function Navbar() {
 
         <nav aria-label="Main navigation" className="hidden items-center gap-9 md:flex">
           {links.map((link) => (
-            <Link
+            <a
               key={link.href}
               href={link.href}
               className="group relative py-2 text-sm text-brown/85 transition-colors hover:text-maroon"
             >
               {link.label}
               <span className="absolute inset-x-0 bottom-0 h-px origin-left scale-x-0 bg-gold transition-transform duration-200 group-hover:scale-x-100" />
-            </Link>
+            </a>
           ))}
           <Link
-            href="#contact"
+            href="/#contact"
             className="inline-flex min-h-11 items-center gap-2 border border-maroon px-4 text-sm font-semibold text-maroon transition-colors hover:bg-maroon hover:text-ivory"
           >
             Shop details <ArrowUpRight aria-hidden="true" size={15} />

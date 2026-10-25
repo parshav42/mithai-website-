@@ -4,27 +4,27 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
-  useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import { X } from "lucide-react";
 import {
-  calculateSubtotal,
-  countCartItems,
-  normalizeCart,
-  updateCart,
-  type CartItems,
-} from "@/lib/cart";
-import { getProductById, isPurchasable, products } from "@/data/products";
-
-const STORAGE_KEY = "mithai-house-cart-v1";
+  addCartItem,
+  dismissCartNotice,
+  getCartSnapshot,
+  getServerCartSnapshot,
+  removeCartItem,
+  setCartQuantity,
+  subscribeToCart,
+} from "@/lib/cart-store";
+import { calculateSubtotal, countCartItems } from "@/lib/cart";
+import { products } from "@/data/products";
 
 type CartContextValue = {
-  items: CartItems;
+  items: ReturnType<typeof getCartSnapshot>["items"];
   itemCount: number;
-  subtotalInPaise: number;
+  subtotalInPaise: bigint;
   isReady: boolean;
   notice: string;
   addItem: (productId: string) => void;
@@ -36,90 +36,44 @@ type CartContextValue = {
 const CartContext = createContext<CartContextValue | null>(null);
 
 export function CartProvider({ children }: { children: ReactNode }) {
-  const [items, setItems] = useState<CartItems>({});
-  const [isReady, setIsReady] = useState(false);
-  const [notice, setNotice] = useState("");
-
-  useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        try {
-          setItems(normalizeCart(JSON.parse(stored), products));
-        } catch {
-          setNotice("Saved cart data was unreadable. Your cart has been started fresh.");
-        }
-      }
-    } catch {
-      setNotice("Browser storage is unavailable. Cart changes may not persist.");
-    } finally {
-      setIsReady(true);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!isReady) return;
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-    } catch {
-      setNotice("Cart changes could not be saved in this browser.");
-    }
-  }, [isReady, items]);
-
-  const addItem = useCallback((productId: string) => {
-    const product = getProductById(productId);
-    if (!product || !isPurchasable(product)) {
-      setNotice("This example product cannot be purchased until its price and availability are confirmed.");
-      return;
-    }
-
-    setItems((current) => {
-      if ((current[productId] ?? 0) >= 99) {
-        setNotice("The maximum quantity for this item is 99.");
-        return current;
-      }
-      setNotice(`${product.name} added to your cart.`);
-      return updateCart(current, { type: "add", productId }, products);
-    });
-  }, []);
-
-  const setQuantity = useCallback((productId: string, quantity: number) => {
-    setItems((current) =>
-      updateCart(current, { type: "set-quantity", productId, quantity }, products),
-    );
-  }, []);
-
-  const removeItem = useCallback((productId: string) => {
-    setItems((current) => updateCart(current, { type: "remove", productId }, products));
-    setNotice("Item removed from your cart.");
-  }, []);
-  const clearNotice = useCallback(() => setNotice(""), []);
+  const snapshot = useSyncExternalStore(
+    subscribeToCart,
+    getCartSnapshot,
+    getServerCartSnapshot,
+  );
+  const addItem = useCallback((productId: string) => addCartItem(productId), []);
+  const setQuantity = useCallback(
+    (productId: string, quantity: number) => setCartQuantity(productId, quantity),
+    [],
+  );
+  const removeItem = useCallback((productId: string) => removeCartItem(productId), []);
+  const clearNotice = useCallback(() => dismissCartNotice(), []);
 
   const value = useMemo<CartContextValue>(
     () => ({
-      items,
-      itemCount: countCartItems(items),
-      subtotalInPaise: calculateSubtotal(items, products),
-      isReady,
-      notice,
+      items: snapshot.items,
+      itemCount: countCartItems(snapshot.items),
+      subtotalInPaise: calculateSubtotal(snapshot.items, products),
+      isReady: snapshot.isReady,
+      notice: snapshot.notice,
       addItem,
       setQuantity,
       removeItem,
       clearNotice,
     }),
-    [addItem, clearNotice, isReady, items, notice, removeItem, setQuantity],
+    [addItem, clearNotice, removeItem, setQuantity, snapshot],
   );
 
   return (
     <CartContext.Provider value={value}>
       {children}
-      {notice && (
+      {snapshot.notice && (
         <div
           role="status"
           aria-live="polite"
           className="fixed inset-x-4 bottom-4 z-50 mx-auto flex max-w-lg items-center justify-between gap-4 border border-gold bg-ivory px-4 py-3 text-sm text-brown shadow-lg"
         >
-          <p>{notice}</p>
+          <p>{snapshot.notice}</p>
           <button
             type="button"
             aria-label="Dismiss cart message"
