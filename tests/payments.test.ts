@@ -50,6 +50,7 @@ const checkoutSubmission: CheckoutSubmission = {
 class TestPaymentStore implements PaymentOrderStore {
   order: PersistedPaymentOrder | null = null;
   readonly processedEvents = new Set<string>();
+  readonly refunds = new Map<string, { amountInPaise: number; status: "pending" | "processed" | "failed" }>();
 
   async createPendingOrder(input: NewPaymentOrder) {
     const order: PersistedPaymentOrder = {
@@ -94,21 +95,55 @@ class TestPaymentStore implements PaymentOrderStore {
   }
 
   async processProviderEvent(event: VerifiedProviderEvent) {
-    if (!this.order || this.order.providerOrderId !== event.providerOrderId) {
+    if (
+      !this.order ||
+      (event.eventType === "payment" &&
+        this.order.providerOrderId !== event.providerOrderId) ||
+      (event.eventType === "refund" &&
+        this.order.providerPaymentId !== event.providerPaymentId)
+    ) {
       return "order-not-found" as const;
     }
     if (
-      this.order.amountInPaise !== event.amountInPaise ||
-      this.order.currency !== event.currency
+      event.currency !== this.order.currency ||
+      (event.eventType === "payment" &&
+        this.order.amountInPaise !== event.amountInPaise) ||
+      (event.eventType === "refund" &&
+        (event.refundAmountInPaise ?? 0) > this.order.amountInPaise)
     ) {
       return "amount-mismatch" as const;
     }
     if (this.processedEvents.has(event.providerEventId)) return "duplicate" as const;
 
-    const next = transitionPaymentState(this.order, event.paymentStatus);
-    this.order.orderStatus = next.orderStatus;
-    this.order.paymentStatus = next.paymentStatus;
-    this.order.providerPaymentId = event.providerPaymentId;
+    if (event.eventType === "payment") {
+      const next = transitionPaymentState(this.order, event.paymentStatus);
+      this.order.orderStatus = next.orderStatus;
+      this.order.paymentStatus = next.paymentStatus;
+      this.order.providerPaymentId = event.providerPaymentId;
+    } else if (event.providerRefundId && event.refundStatus) {
+      const existing = this.refunds.get(event.providerRefundId);
+      const status =
+        existing?.status === "processed"
+          ? "processed"
+          : existing?.status === "failed" && event.refundStatus === "pending"
+            ? "failed"
+            : event.refundStatus;
+      this.refunds.set(event.providerRefundId, {
+        amountInPaise: event.refundAmountInPaise ?? 0,
+        status,
+      });
+      this.order.refundedAmountInPaise = [...this.refunds.values()]
+        .filter((refund) => refund.status === "processed")
+        .reduce((total, refund) => total + refund.amountInPaise, 0);
+      const pending = [...this.refunds.values()].some((refund) => refund.status === "pending");
+      this.order.paymentStatus = pending
+        ? "refund_pending"
+        : this.order.refundedAmountInPaise >= this.order.amountInPaise
+          ? "refunded"
+          : this.order.refundedAmountInPaise > 0
+            ? "partially_refunded"
+            : "captured";
+    }
     this.processedEvents.add(event.providerEventId);
     return "applied" as const;
   }
@@ -481,6 +516,77 @@ test("deduplicates webhook events and records captured payment separately from s
   assert.equal(store.order.paymentStatus, "captured");
   assert.equal(store.order.orderStatus, "awaiting_shop_confirmation");
   assert.notEqual(store.order.orderStatus, "confirmed");
+});
+
+test("records partial and full refunds idempotently without treating pending refunds as completed", async () => {
+  const store = new TestPaymentStore();
+  store.order = {
+    id: "db-id",
+    receipt: "receipt_test",
+    providerOrderId: "order_test_123",
+    providerPaymentId: "pay_test_123",
+    customerName: "Asha",
+    customerPhone: "9876543210",
+    fulfillment: "pickup",
+    deliveryAddress: null,
+    instructions: null,
+    lines: [],
+    amountInPaise: 25_100,
+    refundedAmountInPaise: 0,
+    currency: "INR",
+    orderStatus: "awaiting_shop_confirmation",
+    fulfillmentStatus: "new",
+    paymentStatus: "captured",
+    createdAt: new Date(0),
+    updatedAt: new Date(0),
+  };
+  const partialRefund: VerifiedProviderEvent = {
+    providerEventId: "evt_refund_1",
+    eventType: "refund",
+    providerOrderId: null,
+    providerPaymentId: "pay_test_123",
+    amountInPaise: 5_000,
+    currency: "INR",
+    paymentStatus: "refund_pending",
+    providerRefundId: "rfnd_1",
+    refundAmountInPaise: 5_000,
+    refundStatus: "pending",
+  };
+  assert.equal(await processVerifiedProviderEvent(store, partialRefund), "applied");
+  assert.equal(store.order.paymentStatus, "refund_pending");
+  assert.equal(store.order.refundedAmountInPaise, 0);
+  assert.equal(
+    await processVerifiedProviderEvent(store, {
+      ...partialRefund,
+      providerEventId: "evt_refund_2",
+      refundStatus: "processed",
+    }),
+    "applied",
+  );
+  assert.equal(store.order.paymentStatus, "partially_refunded");
+  assert.equal(store.order.refundedAmountInPaise, 5_000);
+  assert.equal(
+    await processVerifiedProviderEvent(store, {
+      ...partialRefund,
+      providerEventId: "evt_refund_3",
+      refundStatus: "processed",
+    }),
+    "applied",
+  );
+  assert.equal(store.order.refundedAmountInPaise, 5_000);
+  assert.equal(
+    await processVerifiedProviderEvent(store, {
+      ...partialRefund,
+      providerEventId: "evt_refund_4",
+      providerRefundId: "rfnd_2",
+      amountInPaise: 20_100,
+      refundAmountInPaise: 20_100,
+      refundStatus: "processed",
+    }),
+    "applied",
+  );
+  assert.equal(store.order.paymentStatus, "refunded");
+  assert.equal(store.order.refundedAmountInPaise, 25_100);
 });
 
 test("handles payment failure, cancellation, and late capture without redirect-based confirmation", () => {

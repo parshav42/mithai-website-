@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AdminPageHeading } from "@/components/admin/admin-shell";
 import { FulfillmentStatusForm } from "@/components/admin/fulfillment-status-form";
+import { ShopOrderStatusForm } from "@/components/admin/shop-order-status-form";
 import { formatPrice } from "@/data/products";
 import {
   formatBusinessDateTime,
@@ -42,6 +43,7 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
           <dl className="mt-5 grid gap-4 sm:grid-cols-2">
             <div><dt className="text-xs font-semibold uppercase text-brown/60">Customer</dt><dd className="mt-1">{order.customerName}</dd></div>
             <div><dt className="text-xs font-semibold uppercase text-brown/60">Phone</dt><dd className="mt-1">{order.customerPhone}</dd></div>
+            <div><dt className="text-xs font-semibold uppercase text-brown/60">Shop order status</dt><dd className="mt-1">{label(order.orderStatus)}</dd></div>
             <div><dt className="text-xs font-semibold uppercase text-brown/60">Fulfillment</dt><dd className="mt-1">{label(order.fulfillment)}</dd></div>
             <div><dt className="text-xs font-semibold uppercase text-brown/60">Fulfillment status</dt><dd className="mt-1">{label(order.fulfillmentStatus)}</dd></div>
             {order.deliveryAddress ? <div className="sm:col-span-2"><dt className="text-xs font-semibold uppercase text-brown/60">Delivery address</dt><dd className="mt-1 whitespace-pre-wrap">{order.deliveryAddress}</dd></div> : null}
@@ -50,6 +52,11 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
           <FulfillmentStatusForm
             orderId={order.id}
             currentStatus={order.fulfillmentStatus}
+            paymentStatus={order.paymentStatus}
+          />
+          <ShopOrderStatusForm
+            orderId={order.id}
+            currentStatus={order.orderStatus}
             paymentStatus={order.paymentStatus}
           />
         </article>

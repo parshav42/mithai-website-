@@ -81,7 +81,7 @@ CREATE TABLE IF NOT EXISTS payment_events (
 CREATE TABLE IF NOT EXISTS order_status_history (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-  status_type TEXT NOT NULL CHECK (status_type IN ('payment', 'fulfillment')),
+  status_type TEXT NOT NULL CHECK (status_type IN ('payment', 'fulfillment', 'order')),
   previous_status TEXT,
   next_status TEXT NOT NULL,
   actor TEXT NOT NULL,

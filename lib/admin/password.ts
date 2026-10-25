@@ -33,10 +33,15 @@ export async function verifyAdminPassword(
   return timingSafeEqual(actual, expected);
 }
 
-export function isAdministratorConfigured(environment: NodeJS.ProcessEnv = process.env) {
+export function isAdministratorConfigured(
+  environment: Record<string, string | undefined> = process.env,
+) {
   return Boolean(
     environment.AUTH_SECRET &&
-      environment.ADMIN_EMAIL?.trim() &&
-      environment.ADMIN_PASSWORD_HASH,
+      environment.AUTH_SECRET.length >= 32 &&
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(environment.ADMIN_EMAIL?.trim() ?? "") &&
+      /^scrypt\$[\da-f]{32}\$[\da-f]{128}$/i.test(
+        environment.ADMIN_PASSWORD_HASH ?? "",
+      ),
   );
 }

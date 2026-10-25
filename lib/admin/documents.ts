@@ -1,5 +1,6 @@
 import { PDFDocument, PageSizes, StandardFonts, rgb } from "pdf-lib";
 import type { formatBusinessDateTime } from "./date-range.ts";
+import { summarizeRevenue } from "./revenue.ts";
 
 type AdminDocumentOrder = {
   id: string;
@@ -13,6 +14,7 @@ type AdminDocumentOrder = {
   amountInPaise: number;
   refundedAmountInPaise: number;
   paymentStatus: string;
+  orderStatus: string;
   fulfillmentStatus: string;
   lines: Array<{
     productName: string;
@@ -23,11 +25,15 @@ type AdminDocumentOrder = {
 
 type DateFormatter = typeof formatBusinessDateTime;
 
-function formatInr(amountInPaise: number) {
-  if (!Number.isSafeInteger(amountInPaise) || amountInPaise < 0) {
+function formatInr(amountInPaise: number | bigint) {
+  if (
+    (typeof amountInPaise === "number" &&
+      (!Number.isSafeInteger(amountInPaise) || amountInPaise < 0)) ||
+    (typeof amountInPaise === "bigint" && amountInPaise < 0n)
+  ) {
     throw new Error("Cannot export an invalid INR amount.");
   }
-  const amount = BigInt(amountInPaise);
+  const amount = typeof amountInPaise === "bigint" ? amountInPaise : BigInt(amountInPaise);
   const rupees = new Intl.NumberFormat("en-IN").format(Number(amount / 100n));
   const paise = String(amount % 100n).padStart(2, "0");
   return `INR ${rupees}.${paise}`;
@@ -53,32 +59,17 @@ export function createOrdersCsv(
   generatedAt: Date,
   formatDate: DateFormatter,
 ) {
-  const paid = orders
-    .filter((order) =>
-      ["captured", "refund_pending", "partially_refunded", "refunded"].includes(
-        order.paymentStatus,
-      ),
-    )
-    .reduce((sum, order) => sum + order.amountInPaise, 0);
-  const refunds = orders.reduce((sum, order) => sum + order.refundedAmountInPaise, 0);
-  const cancelled = orders.filter((order) => order.fulfillmentStatus === "cancelled").length;
-  const unpaid = orders
-    .filter(
-      (order) =>
-        !["captured", "refund_pending", "partially_refunded", "refunded"].includes(
-          order.paymentStatus,
-        ) && order.fulfillmentStatus !== "cancelled",
-    )
-    .reduce((sum, order) => sum + order.amountInPaise, 0);
+  const summary = summarizeRevenue(orders);
 
   const rows: Array<Array<string | number | null>> = [
     ["Generated at", formatDate(generatedAt)],
     ["Order count", orders.length],
-    ["Paid gross", formatInr(paid)],
-    ["Completed refunds", formatInr(refunds)],
-    ["Net paid after refunds", formatInr(paid - refunds)],
-    ["Unpaid amount (excluding cancelled orders)", formatInr(unpaid)],
-    ["Cancelled order count", cancelled],
+    ["Paid gross", formatInr(summary.paidGrossInPaise)],
+    ["Completed refunds", formatInr(summary.refundsInPaise)],
+    ["Net paid after refunds", formatInr(summary.netPaidInPaise)],
+    ["Unpaid amount (excluding cancelled orders)", formatInr(summary.unpaidInPaise)],
+    ["Cancelled order count", summary.cancelledCount],
+    ["Cancelled order value", formatInr(summary.cancelledValueInPaise)],
     [],
     [
       "Order ID",
@@ -93,6 +84,7 @@ export function createOrdersCsv(
       "Total",
       "Refunded",
       "Payment status",
+      "Shop order status",
       "Fulfillment status",
     ],
     ...orders.map((order) => [
@@ -108,6 +100,7 @@ export function createOrdersCsv(
       formatInr(order.amountInPaise),
       formatInr(order.refundedAmountInPaise),
       order.paymentStatus,
+      order.orderStatus,
       order.fulfillmentStatus,
     ]),
   ];
@@ -141,23 +134,7 @@ export async function createOrdersPdf(
   let page = pdf.addPage(PageSizes.A4);
   let y = page.getHeight() - 48;
   const margin = 42;
-  const paidGross = orders
-    .filter((order) =>
-      ["captured", "refund_pending", "partially_refunded", "refunded"].includes(
-        order.paymentStatus,
-      ),
-    )
-    .reduce((sum, order) => sum + order.amountInPaise, 0);
-  const refunds = orders.reduce((sum, order) => sum + order.refundedAmountInPaise, 0);
-  const unpaid = orders
-    .filter(
-      (order) =>
-        !["captured", "refund_pending", "partially_refunded", "refunded"].includes(
-          order.paymentStatus,
-        ) && order.fulfillmentStatus !== "cancelled",
-    )
-    .reduce((sum, order) => sum + order.amountInPaise, 0);
-  const cancelled = orders.filter((order) => order.fulfillmentStatus === "cancelled").length;
+  const summary = summarizeRevenue(orders);
 
   const draw = (text: string, options: { bold?: boolean; size?: number } = {}) => {
     for (const line of pdfLines(text)) {
@@ -180,11 +157,11 @@ export async function createOrdersPdf(
   draw(title, { bold: true, size: 12 });
   draw(`Generated at: ${formatDate(generatedAt)}`);
   draw(`Orders: ${orders.length}`);
-  draw(`Paid gross: ${formatInr(paidGross)}`);
-  draw(`Completed refunds: ${formatInr(refunds)}`);
-  draw(`Net paid after refunds: ${formatInr(paidGross - refunds)}`);
-  draw(`Unpaid amount (excluding cancelled orders): ${formatInr(unpaid)}`);
-  draw(`Cancelled orders: ${cancelled}`);
+  draw(`Paid gross: ${formatInr(summary.paidGrossInPaise)}`);
+  draw(`Completed refunds: ${formatInr(summary.refundsInPaise)}`);
+  draw(`Net paid after refunds: ${formatInr(summary.netPaidInPaise)}`);
+  draw(`Unpaid amount (excluding cancelled orders): ${formatInr(summary.unpaidInPaise)}`);
+  draw(`Cancelled orders: ${summary.cancelledCount} · value ${formatInr(summary.cancelledValueInPaise)}`);
   draw("");
   for (const order of orders) {
     draw(`${order.receipt} | ${formatDate(order.createdAt)} | ${formatInr(order.amountInPaise)}`, {
@@ -199,7 +176,7 @@ export async function createOrdersPdf(
       );
     }
     draw(
-      `Payment: ${order.paymentStatus} | Fulfillment: ${order.fulfillmentStatus} | Refunded: ${formatInr(order.refundedAmountInPaise)}`,
+      `Payment: ${order.paymentStatus} | Shop order: ${order.orderStatus} | Fulfillment: ${order.fulfillmentStatus} | Refunded: ${formatInr(order.refundedAmountInPaise)}`,
     );
     draw("");
   }
@@ -265,7 +242,9 @@ export async function createOrderDocumentPdf(
   return pdf.save();
 }
 
-export function getInvoiceBusinessConfiguration(environment: NodeJS.ProcessEnv = process.env) {
+export function getInvoiceBusinessConfiguration(
+  environment: Record<string, string | undefined> = process.env,
+) {
   const name = environment.SHOP_NAME?.trim();
   const address = environment.SHOP_ADDRESS?.trim();
   const phone = environment.SHOP_PHONE?.trim();

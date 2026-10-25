@@ -28,6 +28,7 @@ export default async function AdminAnalyticsPage({ searchParams }: { searchParam
     analytics &&
       (analytics.daily.length > 0 ||
         analytics.paymentBreakdown.length > 0 ||
+        analytics.orderBreakdown.length > 0 ||
         analytics.fulfillmentBreakdown.length > 0),
   );
 
@@ -77,6 +78,7 @@ export default async function AdminAnalyticsPage({ searchParams }: { searchParam
               {analytics.bestSellingProducts.length ? <ol className="mt-4 divide-y divide-gold/20">{analytics.bestSellingProducts.map((item) => <li key={item.productId} className="flex justify-between gap-3 py-3 text-sm"><span>{item.productName} · {item.quantity}</span><span>{formatPrice(item.grossRevenueInPaise)} gross</span></li>)}</ol> : <p className="mt-4 text-sm text-brown/65">No paid product sales in this range.</p>}
             </article>
             <Breakdown title="Payment status" rows={analytics.paymentBreakdown} />
+            <Breakdown title="Shop order status" rows={analytics.orderBreakdown} />
             <Breakdown title="Order fulfillment status" rows={analytics.fulfillmentBreakdown} />
           </section>
         </>

@@ -2,8 +2,10 @@ import { getAdministratorSession } from "@/lib/admin/access";
 import {
   FULFILLMENT_STATUSES,
   getAdminOrderDetails,
+  updateShopOrderStatus,
   updateFulfillmentStatus,
 } from "@/lib/admin/orders";
+import type { FulfillmentStatus } from "@/lib/payments/order-model";
 
 export const dynamic = "force-dynamic";
 
@@ -41,23 +43,34 @@ export async function PATCH(request: Request, context: RouteContext) {
   } catch {
     return Response.json({ error: "Request must contain valid JSON." }, { status: 400 });
   }
-  if (
-    typeof body !== "object" ||
-    body === null ||
-    !("fulfillmentStatus" in body) ||
-    typeof body.fulfillmentStatus !== "string" ||
-    !FULFILLMENT_STATUSES.includes(body.fulfillmentStatus as (typeof FULFILLMENT_STATUSES)[number])
-  ) {
-    return Response.json({ error: "Choose a valid fulfillment status." }, { status: 400 });
-  }
-
   try {
     const { id } = await context.params;
-    const result = await updateFulfillmentStatus(
-      id,
-      body.fulfillmentStatus as (typeof FULFILLMENT_STATUSES)[number],
-      session.user.email ?? "shop-administrator",
-    );
+    if (typeof body !== "object" || body === null) {
+      return Response.json({ error: "A status update is required." }, { status: 400 });
+    }
+    let result;
+    if (
+      "fulfillmentStatus" in body &&
+      typeof body.fulfillmentStatus === "string" &&
+      FULFILLMENT_STATUSES.includes(body.fulfillmentStatus as FulfillmentStatus)
+    ) {
+      result = await updateFulfillmentStatus(
+        id,
+        body.fulfillmentStatus as FulfillmentStatus,
+        session.user.email ?? "shop-administrator",
+      );
+    } else if (
+      "orderStatus" in body &&
+      (body.orderStatus === "confirmed" || body.orderStatus === "cancelled")
+    ) {
+      result = await updateShopOrderStatus(
+        id,
+        body.orderStatus,
+        session.user.email ?? "shop-administrator",
+      );
+    } else {
+      return Response.json({ error: "Choose a valid order or fulfillment status." }, { status: 400 });
+    }
     if (!result.success) {
       const status = result.reason === "not-found" ? 404 : 409;
       const error =

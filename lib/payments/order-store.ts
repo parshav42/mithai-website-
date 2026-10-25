@@ -88,7 +88,7 @@ function paymentTransitionInput(row: OrderRow) {
 async function appendStatusHistory(
   client: PoolClient,
   orderId: string,
-  statusType: "payment" | "fulfillment",
+  statusType: "payment" | "fulfillment" | "order",
   previousStatus: string | null,
   nextStatus: string,
   actor: string,

@@ -1,40 +1,17 @@
-import type { PoolClient, QueryResultRow } from "pg";
+import type { QueryResultRow } from "pg";
 import { getDatabasePool } from "../db.ts";
-import type { FulfillmentStatus, PaymentStatus } from "../payments/order-model.ts";
+import type { FulfillmentStatus, OrderStatus, PaymentStatus } from "../payments/order-model.ts";
 import { appendStatusHistory, insertAudit } from "../payments/order-store.ts";
 import { parseCustomDateRange } from "./date-range.ts";
+import {
+  FULFILLMENT_STATUSES,
+  getPagination,
+  validateFulfillmentChange,
+  validateOrderChange,
+  type AdminOrderStatus,
+} from "./order-status.ts";
 
-export const FULFILLMENT_STATUSES: readonly FulfillmentStatus[] = [
-  "new",
-  "preparing",
-  "ready_for_dispatch",
-  "out_for_delivery",
-  "delivered",
-  "picked_up",
-  "cancelled",
-];
-
-export const PAYMENT_STATUSES: readonly PaymentStatus[] = [
-  "created",
-  "pending",
-  "authorized",
-  "captured",
-  "failed",
-  "cancelled",
-  "refund_pending",
-  "partially_refunded",
-  "refunded",
-];
-
-const FULFILLMENT_TRANSITIONS: Record<FulfillmentStatus, readonly FulfillmentStatus[]> = {
-  new: ["preparing", "cancelled"],
-  preparing: ["ready_for_dispatch", "cancelled"],
-  ready_for_dispatch: ["out_for_delivery", "delivered", "picked_up", "cancelled"],
-  out_for_delivery: ["delivered"],
-  delivered: [],
-  picked_up: [],
-  cancelled: [],
-};
+export { FULFILLMENT_STATUSES, PAYMENT_STATUSES } from "./order-status.ts";
 
 export type AdminOrderFilters = {
   search?: string;
@@ -152,11 +129,7 @@ function makeFilter(filters: AdminOrderFilters) {
 }
 
 export async function listAdminOrders(filters: AdminOrderFilters) {
-  const page =
-    Number.isInteger(filters.page) && (filters.page ?? 0) > 0
-      ? Math.min(filters.page!, 100_000)
-      : 1;
-  const pageSize = 20;
+  const { page, pageSize, offset } = getPagination(filters.page ?? 1);
   const { where, values } = makeFilter(filters);
   const pool = getDatabasePool();
   const count = await pool.query<{ count: string }>(
@@ -168,7 +141,7 @@ export async function listAdminOrders(filters: AdminOrderFilters) {
     `${ORDER_SELECT} ${where}
      ORDER BY orders.created_at DESC
      LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
-    [...values, pageSize, (page - 1) * pageSize],
+    [...values, pageSize, offset],
   );
   return {
     orders: orders.rows.map(mapOrder),
@@ -235,7 +208,7 @@ export async function getAdminOrderDetails(orderId: string) {
 }
 
 export type FulfillmentUpdateResult =
-  | { success: true; status: FulfillmentStatus }
+  | { success: true; status: FulfillmentStatus | AdminOrderStatus }
   | { success: false; reason: "not-found" | "invalid-transition" | "payment-not-eligible" };
 
 export async function updateFulfillmentStatus(
@@ -261,13 +234,16 @@ export async function updateFulfillmentStatus(
       await client.query("ROLLBACK");
       return { success: false, reason: "not-found" };
     }
-    if (!FULFILLMENT_TRANSITIONS[order.fulfillment_status].includes(nextStatus)) {
+    const transition = validateFulfillmentChange(
+      order.fulfillment_status,
+      nextStatus,
+      order.payment_status,
+    );
+    if (transition === "invalid-transition") {
       await client.query("ROLLBACK");
       return { success: false, reason: "invalid-transition" };
     }
-    if (
-      !["captured", "partially_refunded"].includes(order.payment_status)
-    ) {
+    if (transition === "payment-not-eligible") {
       await client.query("ROLLBACK");
       return { success: false, reason: "payment-not-eligible" };
     }
@@ -277,7 +253,7 @@ export async function updateFulfillmentStatus(
       [orderId, nextStatus],
     );
     await appendStatusHistory(
-      client as PoolClient,
+      client,
       orderId,
       "fulfillment",
       order.fulfillment_status,
@@ -285,7 +261,7 @@ export async function updateFulfillmentStatus(
       administrator,
     );
     await insertAudit(
-      client as PoolClient,
+      client,
       administrator,
       "fulfillment_status_updated",
       "order",
@@ -302,14 +278,81 @@ export async function updateFulfillmentStatus(
   }
 }
 
+export async function updateShopOrderStatus(
+  orderId: string,
+  nextStatus: AdminOrderStatus,
+  administrator: string,
+): Promise<FulfillmentUpdateResult> {
+  if (nextStatus !== "confirmed" && nextStatus !== "cancelled") {
+    return { success: false, reason: "invalid-transition" };
+  }
+  const client = await getDatabasePool().connect();
+  try {
+    await client.query("BEGIN");
+    const result = await client.query<{
+      id: string;
+      order_status: OrderStatus;
+      payment_status: PaymentStatus;
+    }>(
+      `SELECT id, order_status, payment_status FROM orders WHERE id = $1 FOR UPDATE`,
+      [orderId],
+    );
+    const order = result.rows[0];
+    if (!order) {
+      await client.query("ROLLBACK");
+      return { success: false, reason: "not-found" };
+    }
+    const transition = validateOrderChange(
+      order.order_status,
+      nextStatus,
+      order.payment_status,
+    );
+    if (transition !== "valid") {
+      await client.query("ROLLBACK");
+      return { success: false, reason: transition };
+    }
+    await client.query(
+      `UPDATE orders SET order_status = $2, updated_at = NOW() WHERE id = $1`,
+      [orderId, nextStatus],
+    );
+    await appendStatusHistory(
+      client,
+      orderId,
+      "order",
+      order.order_status,
+      nextStatus,
+      administrator,
+    );
+    await insertAudit(
+      client,
+      administrator,
+      "shop_order_status_updated",
+      "order",
+      orderId,
+      { from: order.order_status, to: nextStatus },
+    );
+    await client.query("COMMIT");
+    return { success: true, status: nextStatus };
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 export async function getReportOrders(from: string, to: string) {
-  const range = parseCustomDateRange(from, to);
+  parseCustomDateRange(from, to);
+  return getFilteredAdminOrders({ from, to });
+}
+
+export async function getFilteredAdminOrders(filters: AdminOrderFilters) {
+  const { where, values } = makeFilter(filters);
   const result = await getDatabasePool().query<OrderDbRow>(
-    `${ORDER_SELECT}
-     WHERE orders.created_at >= $1 AND orders.created_at < $2
+    `${ORDER_SELECT} ${where}
      ORDER BY orders.created_at ASC
      LIMIT 5001`,
-    [range.start, range.end],
+    values,
   );
   if (result.rows.length > 5000) {
     throw new Error("The selected report contains more than 5,000 orders. Narrow the range.");

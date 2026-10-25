@@ -94,7 +94,7 @@ export async function getAnalytics(
   timeZone = getBusinessTimeZone(),
 ) {
   const pool = getDatabasePool();
-  const [daily, weekly, monthly, payments, fulfillment, products, delivery] =
+  const [daily, weekly, monthly, payments, orders, fulfillment, products, delivery] =
     await Promise.all([
       pool.query(
         `SELECT
@@ -129,6 +129,12 @@ export async function getAnalytics(
         `SELECT payment_status AS status, COUNT(*)::text AS count
          FROM orders WHERE created_at >= $1 AND created_at < $2
          GROUP BY payment_status ORDER BY payment_status`,
+        [range.start, range.end],
+      ),
+      pool.query(
+        `SELECT order_status AS status, COUNT(*)::text AS count
+         FROM orders WHERE created_at >= $1 AND created_at < $2
+         GROUP BY order_status ORDER BY order_status`,
         [range.start, range.end],
       ),
       pool.query(
@@ -177,6 +183,10 @@ export async function getAnalytics(
     weekly: mapSeries(weekly.rows),
     monthly: mapSeries(monthly.rows),
     paymentBreakdown: payments.rows.map((row) => ({
+      status: row.status as string,
+      count: safeInteger(row.count),
+    })),
+    orderBreakdown: orders.rows.map((row) => ({
       status: row.status as string,
       count: safeInteger(row.count),
     })),

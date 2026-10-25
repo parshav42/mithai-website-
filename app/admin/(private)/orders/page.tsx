@@ -9,15 +9,11 @@ import {
   listAdminOrders,
   PAYMENT_STATUSES,
 } from "@/lib/admin/orders";
+import { parseAdminOrderFilters } from "@/lib/admin/query";
 
 export const metadata: Metadata = { title: "Orders | Mithai House Admin" };
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
-
-function value(search: Record<string, string | string[] | undefined>, key: string) {
-  const field = search[key];
-  return typeof field === "string" ? field : "";
-}
 
 function label(status: string) {
   return status.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -29,17 +25,22 @@ export default async function AdminOrdersPage({
   searchParams: SearchParams;
 }) {
   const query = await searchParams;
-  const payment = value(query, "paymentStatus");
-  const fulfillment = value(query, "fulfillmentStatus");
-  const page = Number(value(query, "page") || 1);
-  const filters = {
-    search: value(query, "search"),
-    from: value(query, "from"),
-    to: value(query, "to"),
-    paymentStatus: PAYMENT_STATUSES.find((status) => status === payment),
-    fulfillmentStatus: FULFILLMENT_STATUSES.find((status) => status === fulfillment),
-    page: Number.isInteger(page) && page > 0 ? page : 1,
-  };
+  const params = new URLSearchParams();
+  for (const [key, item] of Object.entries(query)) {
+    if (typeof item === "string") params.set(key, item);
+  }
+  const parsed = parseAdminOrderFilters(params);
+  if (!parsed.success) {
+    return (
+      <>
+        <AdminPageHeading eyebrow="Shop operations" title="Orders" />
+        <p role="alert" className="border border-maroon/30 bg-white p-5 text-sm text-maroon">{parsed.error}</p>
+      </>
+    );
+  }
+  const filters = parsed.filters;
+  const payment = filters.paymentStatus ?? "";
+  const fulfillment = filters.fulfillmentStatus ?? "";
   const result = await listAdminOrders(filters);
 
   return (
@@ -78,6 +79,7 @@ export default async function AdminOrdersPage({
         </label>
         <div className="flex items-end gap-3 sm:col-span-2 lg:col-span-6">
           <button className="min-h-10 bg-maroon px-4 text-sm font-semibold text-ivory hover:bg-brown">Apply filters</button>
+          <button formAction="/api/admin/reports/csv" className="min-h-10 border border-maroon px-4 text-sm font-semibold text-maroon hover:bg-maroon hover:text-ivory">Export filtered CSV</button>
           <Link href="/admin/orders" className="inline-flex min-h-10 items-center px-2 text-sm text-maroon underline underline-offset-4">Clear</Link>
         </div>
       </form>
@@ -99,7 +101,7 @@ export default async function AdminOrdersPage({
                 <p className="mt-3 text-sm">{order.lines.map((line) => `${line.productName} × ${line.quantity}`).join(", ")}</p>
                 <div className="mt-3 flex flex-wrap justify-between gap-2 text-sm">
                   <strong>{formatPrice(order.amountInPaise)}</strong>
-                  <span>{label(order.paymentStatus)} · {label(order.fulfillmentStatus)}</span>
+                  <span>{label(order.paymentStatus)} · {label(order.orderStatus)} · {label(order.fulfillmentStatus)}</span>
                 </div>
               </article>
             ))}
@@ -107,7 +109,7 @@ export default async function AdminOrdersPage({
           <div className="hidden overflow-x-auto border border-gold/30 bg-white md:block">
             <table className="w-full min-w-[1000px] border-collapse text-left text-sm">
               <thead className="bg-maroon text-ivory">
-                <tr>{["Order / date", "Customer", "Fulfillment", "Items", "Total", "Payment", "Status"].map((header) => <th key={header} className="px-4 py-3 font-semibold">{header}</th>)}</tr>
+                <tr>{["Order / date", "Customer", "Fulfillment", "Items", "Total", "Payment", "Shop order / fulfillment"].map((header) => <th key={header} className="px-4 py-3 font-semibold">{header}</th>)}</tr>
               </thead>
               <tbody>
                 {result.orders.map((order) => (
@@ -125,7 +127,7 @@ export default async function AdminOrdersPage({
                     <td className="px-4 py-4">{order.lines.map((line) => <p key={line.productId}>{line.productName} × {line.quantity}</p>)}</td>
                     <td className="px-4 py-4 font-semibold">{formatPrice(order.amountInPaise)}</td>
                     <td className="px-4 py-4">{label(order.paymentStatus)}</td>
-                    <td className="px-4 py-4">{label(order.fulfillmentStatus)}</td>
+                    <td className="px-4 py-4">{label(order.orderStatus)}<p className="mt-1 text-xs text-brown/60">{label(order.fulfillmentStatus)}</p></td>
                   </tr>
                 ))}
               </tbody>

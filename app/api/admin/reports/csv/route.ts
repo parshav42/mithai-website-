@@ -1,7 +1,8 @@
 import { getAdministratorSession } from "@/lib/admin/access";
 import { createOrdersCsv } from "@/lib/admin/documents";
 import { formatBusinessDateTime, InvalidDateRangeError } from "@/lib/admin/date-range";
-import { getReportOrders } from "@/lib/admin/orders";
+import { getFilteredAdminOrders } from "@/lib/admin/orders";
+import { parseAdminOrderFilters } from "@/lib/admin/query";
 
 export const dynamic = "force-dynamic";
 
@@ -10,10 +11,10 @@ export async function GET(request: Request) {
   if (!session) return Response.json({ error: "Administrator access required." }, { status: 401 });
 
   const params = new URL(request.url).searchParams;
-  const from = params.get("from") ?? "";
-  const to = params.get("to") ?? "";
+  const parsed = parseAdminOrderFilters(params);
+  if (!parsed.success) return Response.json({ error: parsed.error }, { status: 400 });
   try {
-    const orders = await getReportOrders(from, to);
+    const orders = await getFilteredAdminOrders(parsed.filters);
     const csv = createOrdersCsv(orders, new Date(), formatBusinessDateTime);
     return new Response(csv, {
       headers: {
