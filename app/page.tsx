@@ -6,63 +6,18 @@ import { Container } from "@/components/container";
 import { Footer } from "@/components/footer";
 import { Navbar } from "@/components/navbar";
 import { ProductCard } from "@/components/product-card";
+import { productCategories, products, type ProductCategory } from "@/data/products";
 
-const categories = [
-  {
-    name: "Kaju Katli",
-    image: "/images/mithai-assortment.jpg",
-    alt: "Illustrative photograph of assorted Indian sweets arranged on a traditional platter.",
-    position: "50% 45%",
-  },
-  {
-    name: "Ladoo",
-    image: "/images/ladoo.jpg",
-    alt: "Illustrative photograph of round ladoos on a silver plate.",
-    position: "50% 45%",
-  },
-  {
-    name: "Barfi",
-    image: "/images/hero-mithai.jpg",
-    alt: "Illustrative photograph of an assortment of traditional Indian sweets.",
-    position: "76% 65%",
-  },
-  {
-    name: "Rasgulla",
-    image: "/images/gifting-mithai.jpg",
-    alt: "Illustrative photograph of assorted Indian sweets on a festive platter.",
-    position: "27% 28%",
-  },
-  {
-    name: "Peda",
-    image: "/images/mithai-assortment.jpg",
-    alt: "Illustrative photograph of assorted Indian sweets arranged for sharing.",
-    position: "72% 35%",
-  },
-  {
-    name: "Jalebi",
-    image: "/images/jalebi.jpg",
-    alt: "Illustrative photograph of a jalebi sweet served with rose petals.",
-    position: "50% 52%",
-  },
-] as const;
+const featuredProducts = products.slice(0, 3);
 
-const products = [
-  {
-    name: "Kaju Katli",
-    image: "/images/mithai-assortment.jpg",
-    imageAlt: "Illustrative photograph of assorted Indian sweets; not shop product photography.",
-  },
-  {
-    name: "Motichoor Ladoo",
-    image: "/images/ladoo.jpg",
-    imageAlt: "Illustrative photograph of ladoos on a silver plate; not shop product photography.",
-  },
-  {
-    name: "Jalebi",
-    image: "/images/jalebi.jpg",
-    imageAlt: "Illustrative photograph of jalebi; not shop product photography.",
-  },
-] as const;
+const categoryArtwork: Record<ProductCategory, string> = {
+  "kaju-katli": "50% 45%",
+  ladoo: "50% 45%",
+  barfi: "76% 65%",
+  rasgulla: "27% 28%",
+  peda: "72% 35%",
+  jalebi: "50% 52%",
+};
 
 export default function Home() {
   return (
@@ -93,11 +48,11 @@ export default function Home() {
                 moments.
               </p>
               <div className="mt-8 flex flex-col gap-3 min-[420px]:flex-row min-[420px]:flex-wrap">
-                <Button href="#bestsellers" className="w-full min-[420px]:w-auto">
+                <Button href="/products" className="w-full min-[420px]:w-auto">
                   Shop Mithai <ArrowRight aria-hidden="true" size={16} />
                 </Button>
                 <Button
-                  href="#gifting"
+                  href="/#gifting"
                   variant="outline"
                   className="w-full min-[420px]:w-auto"
                 >
@@ -157,17 +112,28 @@ export default function Home() {
               </p>
             </div>
             <div className="mt-8 grid grid-cols-2 gap-x-4 gap-y-7 sm:mt-11 sm:grid-cols-3 sm:gap-x-6 lg:gap-x-8">
-              {categories.map((category, index) => (
+              {productCategories.map((category, index) => {
+                const representative = products.find(
+                  (product) => product.category === category.slug,
+                );
+                if (!representative) return null;
+
+                return (
                 <article key={category.name} className="group min-w-0">
                   <figure>
+                    <a
+                      href={`/products?category=${category.slug}`}
+                      aria-label={`Browse ${category.name} examples`}
+                      className="block"
+                    >
                     <div className="relative aspect-[1.07/1] overflow-hidden bg-[#ead9bb]">
                       <Image
-                        src={category.image}
-                        alt={category.alt}
+                        src={representative.image}
+                        alt={representative.imageAlt}
                         fill
                         sizes="(min-width: 1024px) 30vw, (min-width: 640px) 45vw, 50vw"
                         className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"
-                        style={{ objectPosition: category.position }}
+                        style={{ objectPosition: categoryArtwork[category.slug] }}
                       />
                       <span className="absolute bottom-2 left-2 bg-ivory px-2 py-1 text-[0.5rem] font-semibold tracking-[0.1em] text-brown sm:bottom-3 sm:left-3 sm:text-[0.58rem]">
                         ILLUSTRATIVE PHOTO
@@ -183,9 +149,11 @@ export default function Home() {
                         </span>
                       </span>
                     </figcaption>
+                    </a>
                   </figure>
                 </article>
-              ))}
+                );
+              })}
             </div>
           </Container>
         </section>
@@ -203,8 +171,8 @@ export default function Home() {
               </p>
             </div>
             <div className="mt-8 grid grid-cols-1 gap-x-5 gap-y-8 sm:mt-11 sm:grid-cols-3 sm:gap-x-6 lg:gap-x-8">
-              {products.map((product) => (
-                <ProductCard key={product.name} {...product} />
+              {featuredProducts.map((product) => (
+                <ProductCard key={product.id} product={product} />
               ))}
             </div>
           </Container>
