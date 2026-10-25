@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { Route } from "next";
 import Link from "next/link";
 import { AdminEmptyState, AdminPageHeading } from "@/components/admin/admin-shell";
 import { formatPrice } from "@/data/products";
@@ -146,11 +147,11 @@ export default async function AdminOrdersPage({
 function pageHref(
   query: Record<string, string | string[] | undefined>,
   page: number,
-) {
+): Route {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
     if (typeof value === "string" && key !== "page") params.set(key, value);
   }
   params.set("page", String(page));
-  return `/admin/orders?${params.toString()}`;
+  return `/admin/orders?${params.toString()}` as Route;
 }

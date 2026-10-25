@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Route } from "next";
 import {
   Activity,
   ClipboardList,
@@ -11,13 +12,13 @@ import {
 } from "lucide-react";
 import { administratorSignOut } from "@/app/admin/actions";
 
-const navigation = [
+const navigation: Array<{ href: Route; label: string; icon: typeof LayoutDashboard }> = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
-  { href: "/admin/orders", label: "Orders", icon: ClipboardList },
-  { href: "/admin/payments", label: "Payments", icon: CreditCard },
-  { href: "/admin/reports", label: "Reports", icon: FileText },
-  { href: "/admin/analytics", label: "Analytics", icon: Activity },
-  { href: "/admin/settings", label: "Settings", icon: Settings },
+  { href: "/admin/orders" as Route, label: "Orders", icon: ClipboardList },
+  { href: "/admin/payments" as Route, label: "Payments", icon: CreditCard },
+  { href: "/admin/reports" as Route, label: "Reports", icon: FileText },
+  { href: "/admin/analytics" as Route, label: "Analytics", icon: Activity },
+  { href: "/admin/settings" as Route, label: "Settings", icon: Settings },
 ];
 
 export function AdminShell({
@@ -31,7 +32,7 @@ export function AdminShell({
     <div className="min-h-screen bg-[#f5eee2] text-brown">
       <header className="sticky top-0 z-20 border-b border-gold/40 bg-ivory">
         <div className="mx-auto flex min-h-16 max-w-[90rem] items-center justify-between gap-4 px-4 sm:px-7">
-          <Link href="/admin" className="font-display text-lg text-maroon">
+          <Link href={"/admin" as Route} className="font-display text-lg text-maroon">
             Mithai House <span className="text-xs text-brown/65">/ Admin</span>
           </Link>
           <div className="flex items-center gap-3">

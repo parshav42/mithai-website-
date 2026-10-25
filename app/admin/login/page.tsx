@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import type { Route } from "next";
 import { isAdministratorConfigured } from "@/lib/admin/password";
 import { isDatabaseConfigured } from "@/lib/db";
 import { getAdministratorSession } from "@/lib/admin/access";
@@ -14,7 +15,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function AdministratorLoginPage() {
-  if (await getAdministratorSession()) redirect("/admin");
+  if (await getAdministratorSession()) redirect("/admin" as Route);
   const configured = isAdministratorConfigured() && isDatabaseConfigured();
 
   return (
