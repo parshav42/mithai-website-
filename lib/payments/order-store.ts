@@ -76,7 +76,6 @@ function toOrder(row: OrderRow, itemRows: ItemRow[]): PersistedPaymentOrder {
     paymentStatus: row.payment_status,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    idempotencyKey: row.idempotency_key,
   };
 }
 
@@ -188,6 +187,9 @@ class PostgresPaymentOrderStore implements PaymentOrderStore {
         const existingItems = await findItems(client, existing.id);
         const sameRequest = existing.customer_name === input.customerName &&
           existing.customer_phone === input.customerPhone &&
+          existing.fulfillment_method === input.fulfillment &&
+          existing.delivery_address === input.deliveryAddress &&
+          existing.instructions === input.instructions &&
           safeMoney(existing.amount_in_paise) === input.amountInPaise &&
           existingItems.length === input.lines.length &&
           existingItems.every((item, index) => item.product_id === input.lines[index]?.productId &&

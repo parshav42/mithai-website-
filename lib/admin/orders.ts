@@ -1,8 +1,10 @@
 import type { QueryResultRow } from "pg";
+import { randomUUID } from "node:crypto";
 import { getDatabasePool } from "../db.ts";
 import type { FulfillmentStatus, OrderStatus, PaymentStatus } from "../payments/order-model.ts";
 import { appendStatusHistory, insertAudit } from "../payments/order-store.ts";
 import { parseCustomDateRange } from "./date-range.ts";
+import { sendConfirmationSms } from "../notifications/sms.ts";
 import {
   FULFILLMENT_STATUSES,
   getPagination,
@@ -19,6 +21,7 @@ export type AdminOrderFilters = {
   to?: string;
   paymentStatus?: PaymentStatus;
   fulfillmentStatus?: FulfillmentStatus;
+  orderStatus?: OrderStatus;
   page?: number;
 };
 
@@ -112,6 +115,9 @@ function makeFilter(filters: AdminOrderFilters) {
   if (filters.fulfillmentStatus) {
     addFilter(clauses, values, "orders.fulfillment_status =", filters.fulfillmentStatus);
   }
+  if (filters.orderStatus) {
+    addFilter(clauses, values, "orders.order_status =", filters.orderStatus);
+  }
   const search = filters.search?.trim().slice(0, 100);
   if (search) {
     values.push(`%${search.replace(/[\\%_]/g, "\\$&")}%`);
@@ -162,7 +168,7 @@ export async function getAdminOrderDetails(orderId: string) {
   const row = result.rows[0];
   if (!row) return null;
 
-  const [history, attempts, refunds] = await Promise.all([
+  const [history, attempts, refunds, notification] = await Promise.all([
     pool.query(
       `SELECT status_type, previous_status, next_status, actor, created_at
        FROM order_status_history WHERE order_id = $1 ORDER BY created_at DESC`,
@@ -177,6 +183,11 @@ export async function getAdminOrderDetails(orderId: string) {
     pool.query(
       `SELECT provider_refund_id, amount_in_paise, status, created_at, updated_at
        FROM refunds WHERE order_id = $1 ORDER BY created_at DESC`,
+      [orderId],
+    ),
+    pool.query(
+      `SELECT status, provider, provider_reference, attempt_count, last_error, retryable, created_at, updated_at
+       FROM order_notifications WHERE order_id = $1 AND notification_type = 'order_confirmed'`,
       [orderId],
     ),
   ]);
@@ -204,6 +215,16 @@ export async function getAdminOrderDetails(orderId: string) {
       createdAt: refund.created_at as Date,
       updatedAt: refund.updated_at as Date,
     })),
+    confirmationNotification: notification.rows[0] ? {
+      status: notification.rows[0].status as string,
+      provider: notification.rows[0].provider as string,
+      providerReference: notification.rows[0].provider_reference as string | null,
+      attemptCount: Number(notification.rows[0].attempt_count),
+      lastError: notification.rows[0].last_error as string | null,
+      retryable: notification.rows[0].retryable as boolean,
+      createdAt: notification.rows[0].created_at as Date,
+      updatedAt: notification.rows[0].updated_at as Date,
+    } : null,
   };
 }
 
@@ -331,6 +352,16 @@ export async function updateShopOrderStatus(
       orderId,
       { from: order.order_status, to: nextStatus },
     );
+    if (nextStatus === "confirmed") {
+      await client.query(
+        `INSERT INTO order_notifications
+          (id, order_id, notification_type, recipient_phone, status, provider)
+         SELECT $1, id, 'order_confirmed', customer_phone, 'pending', 'configured'
+         FROM orders WHERE id = $2
+         ON CONFLICT (order_id, notification_type) DO NOTHING`,
+        [randomUUID(), orderId],
+      );
+    }
     await client.query("COMMIT");
     return { success: true, status: nextStatus };
   } catch (error) {
@@ -339,6 +370,74 @@ export async function updateShopOrderStatus(
   } finally {
     client.release();
   }
+}
+
+export async function processConfirmationNotification(orderId: string) {
+  const pool = getDatabasePool();
+  const client = await pool.connect();
+  let notificationId: string | null = null;
+  try {
+    await client.query("BEGIN");
+    const result = await client.query<{
+      id: string; customer_name: string; customer_phone: string; receipt: string;
+      amount_in_paise: string | number;
+    }>(
+      `SELECT n.id, o.customer_name, n.recipient_phone AS customer_phone, o.receipt, o.amount_in_paise
+       FROM order_notifications n JOIN orders o ON o.id = n.order_id
+       WHERE n.order_id = $1 AND n.notification_type = 'order_confirmed'
+         AND n.status = 'pending' FOR UPDATE OF n`,
+      [orderId],
+    );
+    const row = result.rows[0];
+    if (!row) {
+      await client.query("COMMIT");
+      return null;
+    }
+    notificationId = row.id;
+    await client.query(
+      `UPDATE order_notifications SET status = 'processing', attempt_count = attempt_count + 1,
+       updated_at = NOW() WHERE id = $1`, [notificationId],
+    );
+    await client.query("COMMIT");
+    const sendResult = await sendConfirmationSms({
+      phone: row.customer_phone,
+      customerName: row.customer_name,
+      receipt: row.receipt,
+      amountInPaise: safeMoney(row.amount_in_paise),
+    });
+    await pool.query(
+      `UPDATE order_notifications SET status = $2, provider = $3, provider_reference = $4,
+       last_error = $5, retryable = $6, updated_at = NOW() WHERE id = $1`,
+      [notificationId, sendResult.accepted ? "accepted" : "failed", sendResult.provider,
+        sendResult.accepted ? sendResult.reference : null,
+        sendResult.accepted ? null : sendResult.error,
+        sendResult.accepted ? false : sendResult.retryable],
+    );
+    return { status: sendResult.accepted ? "accepted" : "failed", error: sendResult.accepted ? null : sendResult.error };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    if (notificationId) {
+      await pool.query(
+        `UPDATE order_notifications SET status = 'failed', last_error = 'Notification processing failed.', updated_at = NOW() WHERE id = $1`,
+        [notificationId],
+      ).catch(() => undefined);
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function retryConfirmationNotification(orderId: string) {
+  const result = await getDatabasePool().query(
+    `UPDATE order_notifications SET status = 'pending', updated_at = NOW()
+     WHERE order_id = $1 AND notification_type = 'order_confirmed'
+       AND status = 'failed' AND retryable = TRUE AND attempt_count < 3
+     RETURNING id`,
+    [orderId],
+  );
+  if (result.rowCount !== 1) return null;
+  return processConfirmationNotification(orderId);
 }
 
 export async function getReportOrders(from: string, to: string) {

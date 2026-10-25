@@ -96,16 +96,15 @@ export async function createPaymentOrder(
     });
     orderId = savedOrder.id;
     if (
-    savedOrder.amountInPaise !== Number(amountInPaise) ||
-    savedOrder.currency !== "INR" ||
-    savedOrder.receipt !== receipt
+      savedOrder.amountInPaise !== Number(amountInPaise) ||
+      savedOrder.currency !== "INR"
     ) {
-    await store.markProviderOrderCreationFailed(savedOrder.id);
-    return {
-      success: false,
-      status: 502,
-      error: "The saved order does not match the validated checkout. No payment was started.",
-    };
+      await store.markProviderOrderCreationFailed(savedOrder.id);
+      return {
+        success: false,
+        status: 502,
+        error: "The saved order does not match the validated checkout. No payment was started.",
+      };
     }
 
     if (savedOrder.providerOrderId) {

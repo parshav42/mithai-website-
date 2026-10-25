@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 export function ShopOrderStatusForm({
   orderId,
@@ -13,6 +14,7 @@ export function ShopOrderStatusForm({
 }) {
   const [message, setMessage] = useState("");
   const [pending, setPending] = useState(false);
+  const router = useRouter();
   const canConfirm =
     currentStatus === "awaiting_shop_confirmation" &&
     ["captured", "partially_refunded"].includes(paymentStatus);
@@ -32,12 +34,21 @@ export function ShopOrderStatusForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ orderStatus }),
       });
-      const body: { error?: string } = await response.json();
+      const body: { error?: string; notification?: { status: string; error: string | null } | null } = await response.json();
       if (!response.ok) {
         setMessage(body.error ?? "The order status could not be saved.");
         return;
       }
-      window.location.reload();
+      if (orderStatus === "confirmed") {
+        setMessage(body.notification?.status === "accepted"
+          ? "Order confirmed. SMS was accepted by the configured provider."
+          : body.notification?.status === "failed"
+            ? `Order confirmed. SMS failed: ${body.notification.error ?? "provider error"}`
+            : "Order confirmed. SMS is pending processing.");
+      } else {
+        setMessage("Order status saved.");
+      }
+      router.refresh();
     } catch {
       setMessage("The administrator service could not be reached. Try again.");
     } finally {

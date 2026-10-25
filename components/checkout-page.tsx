@@ -238,6 +238,9 @@ export function CheckoutPage({
                     ? "Razorpay reports that this payment was refunded. The shop must review the order."
                     : "Payment is not captured yet. Your order is not confirmed; the shop will need to verify its status.",
             );
+            if (responseData.paymentStatus === "captured") {
+              checkoutKeys.current.delete(requestKey);
+            }
           } catch {
             setPaymentMessage(
               "Payment verification could not be reached. Your payment status is unknown; contact the shop before retrying.",

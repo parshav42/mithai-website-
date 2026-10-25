@@ -54,7 +54,6 @@ export type PersistedPaymentOrder = {
   refundedAmountInPaise: number;
   createdAt: Date;
   updatedAt: Date;
-  idempotencyKey: string | null;
 };
 
 export type NewPaymentOrder = Omit<

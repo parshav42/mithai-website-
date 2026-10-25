@@ -15,9 +15,8 @@ The customer must then open WhatsApp and send the message. Opening it does not s
 or confirm an order, and the shop must confirm availability and final details.
 
 The current catalog consists only of demonstration entries with unconfirmed prices
-and availability. Therefore, WhatsApp order preparation is intentionally blocked
-until real products, prices, and availability are configured. No customer order is
-persisted by this application.
+and availability. Therefore, customer checkout is intentionally blocked until real
+products, prices, and availability are configured.
 
 ## Razorpay payment foundation
 
@@ -45,11 +44,10 @@ The intended flow is:
    payment state. A captured payment leaves the shop order in
    `awaiting_shop_confirmation`; payment success does not confirm fulfillment.
 
-The server endpoints and SDK adapter are prepared, but **live payment creation is
-disabled** until all guard conditions exist. `getPaymentOrderStore()` currently
-returns `null` because this project has no database adapter. The product catalog
-also contains demonstration entries only. The endpoints therefore cannot create
-real Razorpay orders, even if keys are supplied. No credentials are configured here.
+Live payment creation remains disabled until all guard conditions exist. The
+PostgreSQL store is implemented, but the product catalog contains demonstration
+entries only. The endpoints therefore cannot create a real order while the catalog
+is unconfirmed. No credentials are configured here.
 
 ### Environment variables
 
@@ -75,10 +73,12 @@ SDK](https://github.com/razorpay/razorpay-node).
 
 ### Database and order model
 
-There is no persistent database configured. The integration point is
-`PaymentOrderStore` in `lib/payments/order-model.ts`; implement it with PostgreSQL
-(or another transactional database) before enabling payment endpoints. Its durable
-order records must include:
+The PostgreSQL store is `lib/payments/order-store.ts`. Run `npm run db:migrate` with
+`DATABASE_URL_UNPOOLED` (preferred for schema changes) or `DATABASE_URL` to apply
+the additive migrations `001_admin_orders` and `002_order_notifications`. The second
+migration adds checkout idempotency and the SMS outbox. Do not run migrations against
+production until the selected Neon database is confirmed. Its durable order records
+include:
 
 - Internal order ID and unique Razorpay receipt/provider order ID.
 - Customer name, phone, fulfillment choice, delivery address when applicable, and
@@ -88,17 +88,41 @@ order records must include:
 - Separate order and payment status, provider payment ID, timestamps, and a unique
   webhook event ID table/index for deduplication.
 
-Use a transaction for idempotent event application and status transitions. Never
-store card data, Razorpay secrets, or customer checkout data in browser local storage.
-Only the cart remains browser-local. Do not replace the store with in-memory server
-state: it is not durable across restarts or instances.
+Checkout retries reuse the same `Idempotency-Key`; the unique database key prevents
+duplicate order rows for the same checkout request. Admin order APIs require an
+administrator session. The order list polls the protected API every 15 seconds.
+Status changes and notification enqueueing share a transaction. The server attempts
+the queued notification after commit, and admin users can retry failed messages up to
+three attempts. Provider acceptance is shown separately from confirmed delivery.
+Never store card data, Razorpay secrets, or customer checkout data in browser local
+storage. Only the cart remains browser-local.
 
 ### Why ordering is not live
 
-The owner must provide confirmed product IDs, prices, availability, currency/pack
-details and fulfillment rules. The business must configure its Razorpay account and
-test/live credentials, and the application must receive a real durable order-store
-adapter with the required uniqueness and transaction behavior. Shop confirmation,
-delivery policies, privacy/retention decisions, and webhook deployment URL must also
-be finalized. Until then, the website cannot accept real orders, record payment
-status durably, or claim an order is confirmed.
+The shop must confirm product prices, availability, and delivery-fee policy before
+production checkout. The current order total is the validated catalog subtotal;
+delivery charges and cash-on-delivery are not configured. Confirmation requires a
+provider-verified captured payment.
+
+## SMS setup
+
+The adapter is `lib/notifications/sms.ts`. With `SMS_PROVIDER=mock` (the default) or
+`SMS_ENABLED=false`, confirmation records a local mock acceptance and never contacts
+a provider. Configure these server-only Vercel variables to enable MSG91:
+
+- `SMS_PROVIDER=msg91`
+- `SMS_ENABLED=true`
+- `MSG91_AUTH_KEY`
+- `MSG91_TEMPLATE_ID`
+
+The MSG91 template must map `VAR1` to customer name, `VAR2` to order number, and
+`VAR3` to order total. Configure the sender ID, DLT registration, approved template,
+consent, and applicable Indian messaging rules in MSG91. Do not use `NEXT_PUBLIC_`
+for provider credentials. The app records provider acceptance and reference; a
+delivery callback is not configured, so accepted does not mean delivered.
+
+For an end-to-end local check, configure a test database and Razorpay test
+credentials, run the migrations, replace demonstration products with approved test
+products, place and verify an order, then confirm it in `/admin/orders`. The default
+SMS mock should show an accepted notification with a mock reference. Test failures
+in a non-production environment before enabling MSG91 in production.

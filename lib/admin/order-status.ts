@@ -5,6 +5,10 @@ import type {
 } from "../payments/order-model.ts";
 
 export type AdminOrderStatus = "confirmed" | "cancelled";
+export const ORDER_STATUSES: readonly OrderStatus[] = [
+  "awaiting_payment", "awaiting_shop_confirmation", "confirmed", "cancelled",
+  "payment_received_review_required",
+];
 
 export const FULFILLMENT_STATUSES: readonly FulfillmentStatus[] = [
   "new",

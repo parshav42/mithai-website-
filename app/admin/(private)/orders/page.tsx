@@ -10,6 +10,8 @@ import {
   PAYMENT_STATUSES,
 } from "@/lib/admin/orders";
 import { parseAdminOrderFilters } from "@/lib/admin/query";
+import { ORDER_STATUSES } from "@/lib/admin/order-status";
+import { OrderRefreshWatcher } from "@/components/admin/order-refresh-watcher";
 
 export const metadata: Metadata = { title: "Orders | Mithai House Admin" };
 
@@ -41,7 +43,9 @@ export default async function AdminOrdersPage({
   const filters = parsed.filters;
   const payment = filters.paymentStatus ?? "";
   const fulfillment = filters.fulfillmentStatus ?? "";
+  const orderStatus = filters.orderStatus ?? "";
   const result = await listAdminOrders(filters);
+  params.delete("page");
 
   return (
     <>
@@ -50,6 +54,7 @@ export default async function AdminOrdersPage({
         title="Orders"
         description="Payment status is recorded separately from fulfillment status. Customer details are visible only to signed-in administrators."
       />
+      <OrderRefreshWatcher query={params.toString()} orderIds={result.orders.map((order) => order.id)} />
       <form className="mb-6 grid gap-3 border border-gold/30 bg-white p-4 sm:grid-cols-2 lg:grid-cols-6">
         <label className="sm:col-span-2">
           <span className="mb-1 block text-xs font-semibold">Search order or customer</span>
@@ -62,6 +67,13 @@ export default async function AdminOrdersPage({
         <label>
           <span className="mb-1 block text-xs font-semibold">Through date</span>
           <input name="to" type="date" defaultValue={filters.to} className="min-h-10 w-full border border-brown/25 px-2" />
+        </label>
+        <label>
+          <span className="mb-1 block text-xs font-semibold">Order status</span>
+          <select name="orderStatus" defaultValue={orderStatus} className="min-h-10 w-full border border-brown/25 bg-white px-2">
+            <option value="">Any order status</option>
+            {ORDER_STATUSES.map((status) => <option key={status} value={status}>{label(status)}</option>)}
+          </select>
         </label>
         <label>
           <span className="mb-1 block text-xs font-semibold">Payment</span>

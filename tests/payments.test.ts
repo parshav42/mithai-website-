@@ -49,10 +49,12 @@ const checkoutSubmission: CheckoutSubmission = {
 
 class TestPaymentStore implements PaymentOrderStore {
   order: PersistedPaymentOrder | null = null;
+  private idempotencyKey: string | null = null;
   readonly processedEvents = new Set<string>();
   readonly refunds = new Map<string, { amountInPaise: number; status: "pending" | "processed" | "failed" }>();
 
   async createPendingOrder(input: NewPaymentOrder) {
+    if (this.order && this.idempotencyKey === input.idempotencyKey) return this.order;
     const order: PersistedPaymentOrder = {
       ...input,
       id: "database-order-test-id",
@@ -64,6 +66,7 @@ class TestPaymentStore implements PaymentOrderStore {
       updatedAt: new Date(0),
     };
     this.order = order;
+    this.idempotencyKey = input.idempotencyKey;
     return order;
   }
 
@@ -214,6 +217,7 @@ test("missing payment configuration never persists an order or calls the mocked 
   const store = new TestPaymentStore();
   let sdkWasCalled = false;
   const result = await createPaymentOrder(checkoutSubmission, {
+    idempotencyKey: "00000000-0000-4000-8000-000000000001",
     environment: {},
     catalog: confirmedCatalog,
     store,
@@ -247,6 +251,7 @@ test("rejects unconfirmed products and invalid quantities before persistence or 
   const unconfirmed = await createPaymentOrder(
     { ...checkoutSubmission, items: [{ productId: products[0].id, quantity: 1 }] },
     {
+      idempotencyKey: "00000000-0000-4000-8000-000000000002",
       environment: configuredEnvironment,
       catalog: products,
       store,
@@ -256,6 +261,7 @@ test("rejects unconfirmed products and invalid quantities before persistence or 
   const invalidQuantity = await createPaymentOrder(
     { ...checkoutSubmission, items: [{ productId: confirmedProduct.id, quantity: 0 }] },
     {
+      idempotencyKey: "00000000-0000-4000-8000-000000000003",
       environment: configuredEnvironment,
       catalog: confirmedCatalog,
       store,
@@ -272,6 +278,7 @@ test("calculates the saved and Razorpay order total from trusted catalog prices"
   const store = new TestPaymentStore();
   const { client, created } = sdkMock();
   const result = await createPaymentOrder(checkoutSubmission, {
+    idempotencyKey: "00000000-0000-4000-8000-000000000004",
     environment: configuredEnvironment,
     catalog: confirmedCatalog,
     store,
@@ -288,9 +295,28 @@ test("calculates the saved and Razorpay order total from trusted catalog prices"
   assert.equal(created[0]?.partial_payment, false);
 });
 
+test("repeated checkout requests with the same key reuse the saved order and provider order", async () => {
+  const store = new TestPaymentStore();
+  const { client, created } = sdkMock();
+  const dependencies = {
+    idempotencyKey: "00000000-0000-4000-8000-000000000006",
+    environment: configuredEnvironment,
+    catalog: confirmedCatalog,
+    store,
+    sdkFactory: () => client,
+  };
+  const first = await createPaymentOrder(checkoutSubmission, dependencies);
+  const retry = await createPaymentOrder(checkoutSubmission, dependencies);
+  assert.equal(first.success, true);
+  assert.equal(retry.success, true);
+  assert.equal(created.length, 1);
+  assert.equal(store.order?.providerOrderId, "order_test_123");
+});
+
 test("does not create an external Razorpay order when persistent order storage is absent", async () => {
   let sdkWasCalled = false;
   const result = await createPaymentOrder(checkoutSubmission, {
+    idempotencyKey: "00000000-0000-4000-8000-000000000005",
     environment: configuredEnvironment,
     catalog: confirmedCatalog,
     store: null,
@@ -387,8 +413,8 @@ test("invalid checkout payment signatures do not verify or update saved orders",
     { environment: configuredEnvironment, provider, store },
   );
   assert.equal(result.success, false);
-  assert.equal(store.order.paymentStatus, "created");
-  assert.equal(store.order.orderStatus, "awaiting_payment");
+  assert.equal(store.order!.paymentStatus, "created");
+  assert.equal(store.order!.orderStatus, "awaiting_payment");
 });
 
 test("server-fetched captured payment remains separate from shop confirmation", async () => {
@@ -450,8 +476,8 @@ test("server-fetched captured payment remains separate from shop confirmation", 
     assert.equal(result.paymentStatus, "captured");
     assert.equal(result.orderStatus, "awaiting_shop_confirmation");
   }
-  assert.equal(store.order.paymentStatus, "captured");
-  assert.equal(store.order.orderStatus, "awaiting_shop_confirmation");
+  assert.equal(store.order!.paymentStatus, "captured");
+  assert.equal(store.order!.orderStatus, "awaiting_shop_confirmation");
 });
 
 test("rejects invalid webhook signatures and verifies the exact raw body with the official SDK", () => {
@@ -513,9 +539,9 @@ test("deduplicates webhook events and records captured payment separately from s
   };
   assert.equal(await processVerifiedProviderEvent(store, event), "applied");
   assert.equal(await processVerifiedProviderEvent(store, event), "duplicate");
-  assert.equal(store.order.paymentStatus, "captured");
-  assert.equal(store.order.orderStatus, "awaiting_shop_confirmation");
-  assert.notEqual(store.order.orderStatus, "confirmed");
+  assert.equal(store.order!.paymentStatus, "captured");
+  assert.equal(store.order!.orderStatus, "awaiting_shop_confirmation");
+  assert.notEqual(store.order!.orderStatus, "confirmed");
 });
 
 test("records partial and full refunds idempotently without treating pending refunds as completed", async () => {
@@ -553,8 +579,8 @@ test("records partial and full refunds idempotently without treating pending ref
     refundStatus: "pending",
   };
   assert.equal(await processVerifiedProviderEvent(store, partialRefund), "applied");
-  assert.equal(store.order.paymentStatus, "refund_pending");
-  assert.equal(store.order.refundedAmountInPaise, 0);
+  assert.equal(store.order!.paymentStatus, "refund_pending");
+  assert.equal(store.order!.refundedAmountInPaise, 0);
   assert.equal(
     await processVerifiedProviderEvent(store, {
       ...partialRefund,
@@ -563,8 +589,8 @@ test("records partial and full refunds idempotently without treating pending ref
     }),
     "applied",
   );
-  assert.equal(store.order.paymentStatus, "partially_refunded");
-  assert.equal(store.order.refundedAmountInPaise, 5_000);
+  assert.equal(store.order!.paymentStatus, "partially_refunded");
+  assert.equal(store.order!.refundedAmountInPaise, 5_000);
   assert.equal(
     await processVerifiedProviderEvent(store, {
       ...partialRefund,
@@ -573,7 +599,7 @@ test("records partial and full refunds idempotently without treating pending ref
     }),
     "applied",
   );
-  assert.equal(store.order.refundedAmountInPaise, 5_000);
+  assert.equal(store.order!.refundedAmountInPaise, 5_000);
   assert.equal(
     await processVerifiedProviderEvent(store, {
       ...partialRefund,
@@ -585,8 +611,8 @@ test("records partial and full refunds idempotently without treating pending ref
     }),
     "applied",
   );
-  assert.equal(store.order.paymentStatus, "refunded");
-  assert.equal(store.order.refundedAmountInPaise, 25_100);
+  assert.equal(store.order!.paymentStatus, "refunded");
+  assert.equal(store.order!.refundedAmountInPaise, 25_100);
 });
 
 test("handles payment failure, cancellation, and late capture without redirect-based confirmation", () => {

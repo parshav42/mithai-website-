@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS order_notifications (
   provider TEXT NOT NULL,
   provider_reference TEXT,
   attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
+  retryable BOOLEAN NOT NULL DEFAULT FALSE,
   last_error TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

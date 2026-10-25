@@ -1,4 +1,4 @@
-import type { FulfillmentStatus, PaymentStatus } from "../payments/order-model.ts";
+import type { FulfillmentStatus, OrderStatus, PaymentStatus } from "../payments/order-model.ts";
 import {
   FULFILLMENT_STATUSES,
   PAYMENT_STATUSES,
@@ -11,6 +11,7 @@ export type NormalizedAdminOrderFilters = {
   to?: string;
   paymentStatus?: PaymentStatus;
   fulfillmentStatus?: FulfillmentStatus;
+  orderStatus?: OrderStatus;
   page: number;
 };
 
@@ -19,6 +20,7 @@ export function parseAdminOrderFilters(query: URLSearchParams):
   | { success: false; error: string } {
   const paymentStatus = query.get("paymentStatus") ?? "";
   const fulfillmentStatus = query.get("fulfillmentStatus") ?? "";
+  const orderStatus = query.get("orderStatus") ?? "";
   const from = query.get("from") ?? "";
   const to = query.get("to") ?? "";
   if (paymentStatus && !PAYMENT_STATUSES.includes(paymentStatus as PaymentStatus)) {
@@ -29,6 +31,9 @@ export function parseAdminOrderFilters(query: URLSearchParams):
     !FULFILLMENT_STATUSES.includes(fulfillmentStatus as FulfillmentStatus)
   ) {
     return { success: false, error: "Choose a supported fulfillment status." };
+  }
+  if (orderStatus && !["awaiting_payment", "awaiting_shop_confirmation", "confirmed", "cancelled", "payment_received_review_required"].includes(orderStatus)) {
+    return { success: false, error: "Choose a supported order status." };
   }
   if (Boolean(from) !== Boolean(to)) {
     return { success: false, error: "Provide both a start date and an end date." };
@@ -52,6 +57,7 @@ export function parseAdminOrderFilters(query: URLSearchParams):
       to: to || undefined,
       paymentStatus: (paymentStatus || undefined) as PaymentStatus | undefined,
       fulfillmentStatus: (fulfillmentStatus || undefined) as FulfillmentStatus | undefined,
+      orderStatus: (orderStatus || undefined) as OrderStatus | undefined,
       page: Number.isInteger(pageValue) && pageValue > 0 ? Math.min(pageValue, 100_000) : 1,
     },
   };

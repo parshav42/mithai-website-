@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { AdminPageHeading } from "@/components/admin/admin-shell";
 import { FulfillmentStatusForm } from "@/components/admin/fulfillment-status-form";
 import { ShopOrderStatusForm } from "@/components/admin/shop-order-status-form";
+import { RetryConfirmationSms } from "@/components/admin/retry-confirmation-sms";
 import { formatPrice } from "@/data/products";
 import {
   formatBusinessDateTime,
@@ -59,12 +60,27 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
             currentStatus={order.orderStatus}
             paymentStatus={order.paymentStatus}
           />
+          <div className="mt-5 border-t border-gold/25 pt-4">
+            <h3 className="text-xs font-semibold uppercase text-brown/60">Confirmation SMS</h3>
+            {!order.confirmationNotification ? (
+              <p className="mt-2 text-sm text-brown/65">No confirmation SMS is queued.</p>
+            ) : (
+              <div className="mt-2 text-sm">
+                <p>{label(order.confirmationNotification.status)} · {order.confirmationNotification.provider} · {order.confirmationNotification.attemptCount} attempt{order.confirmationNotification.attemptCount === 1 ? "" : "s"}</p>
+                {order.confirmationNotification.providerReference ? <p className="mt-1 break-all text-xs text-brown/60">Provider reference: {order.confirmationNotification.providerReference}</p> : null}
+                {order.confirmationNotification.lastError ? <p className="mt-1 text-maroon">{order.confirmationNotification.lastError}</p> : null}
+                {order.confirmationNotification.status === "failed" && order.confirmationNotification.retryable && order.confirmationNotification.attemptCount < 3 ? <RetryConfirmationSms orderId={order.id} /> : null}
+                <p className="mt-1 text-xs text-brown/60">Accepted means the provider accepted the request; delivery is not confirmed.</p>
+              </div>
+            )}
+          </div>
         </article>
 
         <article className="border border-gold/30 bg-white p-5 sm:p-7">
           <h2 className="font-display text-xl text-maroon">Payment record</h2>
           <dl className="mt-5 space-y-4 text-sm">
             <div><dt className="text-xs font-semibold uppercase text-brown/60">Payment status</dt><dd className="mt-1 font-medium">{label(order.paymentStatus)}</dd></div>
+            <div><dt className="text-xs font-semibold uppercase text-brown/60">Payment method</dt><dd className="mt-1 font-medium">{order.paymentAttempts[0]?.provider ?? "Not started"}</dd></div>
             <div><dt className="text-xs font-semibold uppercase text-brown/60">Order total</dt><dd className="mt-1 font-display text-xl">{formatPrice(order.amountInPaise)}</dd></div>
             <div><dt className="text-xs font-semibold uppercase text-brown/60">Refunded, provider-confirmed</dt><dd className="mt-1">{formatPrice(order.refundedAmountInPaise)}</dd></div>
           </dl>

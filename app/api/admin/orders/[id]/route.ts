@@ -2,6 +2,7 @@ import { getAdministratorSession } from "@/lib/admin/access";
 import {
   FULFILLMENT_STATUSES,
   getAdminOrderDetails,
+  processConfirmationNotification,
   updateShopOrderStatus,
   updateFulfillmentStatus,
 } from "@/lib/admin/orders";
@@ -81,7 +82,15 @@ export async function PATCH(request: Request, context: RouteContext) {
             : "That fulfillment status transition is not allowed.";
       return Response.json({ error }, { status });
     }
-    return Response.json(result, { headers: { "Cache-Control": "no-store" } });
+    let notification: { status: string; error: string | null } | null = null;
+    if (result.status === "confirmed") {
+      try {
+        notification = await processConfirmationNotification(id);
+      } catch {
+        notification = { status: "pending", error: "The order is confirmed; SMS processing will be retried." };
+      }
+    }
+    return Response.json({ ...result, notification }, { headers: { "Cache-Control": "no-store" } });
   } catch {
     return Response.json(
       { error: "The fulfillment update could not be saved." },
