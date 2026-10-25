@@ -18,6 +18,13 @@ export function transitionPaymentState(
   if (current.paymentStatus === "refunded" && nextPaymentStatus !== "refunded") {
     return current;
   }
+  if (
+    (current.paymentStatus === "refund_pending" ||
+      current.paymentStatus === "partially_refunded") &&
+    !["refund_pending", "partially_refunded", "refunded"].includes(nextPaymentStatus)
+  ) {
+    return current;
+  }
   if (current.paymentStatus === "captured" && nextPaymentStatus !== "captured") {
     return current;
   }
@@ -42,6 +49,13 @@ export function transitionPaymentState(
             : "awaiting_shop_confirmation",
       paymentStatus: "captured",
     };
+  }
+
+  if (
+    nextPaymentStatus === "refund_pending" ||
+    nextPaymentStatus === "partially_refunded"
+  ) {
+    return { ...current, paymentStatus: nextPaymentStatus };
   }
 
   if (nextPaymentStatus === "failed") {
@@ -71,11 +85,15 @@ export async function processVerifiedProviderEvent(
 ): Promise<ProcessProviderEventResult> {
   if (
     !event.providerEventId ||
-    !event.providerOrderId ||
     !event.providerPaymentId ||
     !Number.isSafeInteger(event.amountInPaise) ||
     event.amountInPaise <= 0 ||
-    event.currency !== "INR"
+    event.currency !== "INR" ||
+    (event.eventType === "payment" && !event.providerOrderId) ||
+    (event.eventType === "refund" &&
+      (!event.providerRefundId ||
+        !Number.isSafeInteger(event.refundAmountInPaise) ||
+        !event.refundStatus))
   ) {
     throw new Error("Verified Razorpay event has invalid payment fields.");
   }

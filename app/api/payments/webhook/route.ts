@@ -19,6 +19,15 @@ type RazorpayWebhookEvent = {
         status?: unknown;
       };
     };
+    refund?: {
+      entity?: {
+        id?: unknown;
+        payment_id?: unknown;
+        amount?: unknown;
+        currency?: unknown;
+        status?: unknown;
+      };
+    };
   };
 };
 
@@ -28,6 +37,39 @@ function parsePaymentEvent(value: unknown): Omit<
 > | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
   const event = value as RazorpayWebhookEvent;
+  const refund = event.payload?.refund?.entity;
+  const refundStatus =
+    event.event === "refund.created"
+      ? "pending"
+      : event.event === "refund.processed"
+        ? "processed"
+        : event.event === "refund.failed"
+          ? "failed"
+          : null;
+  if (refundStatus && refund) {
+    if (
+      typeof refund.id !== "string" ||
+      typeof refund.payment_id !== "string" ||
+      typeof refund.amount !== "number" ||
+      !Number.isSafeInteger(refund.amount) ||
+      refund.amount <= 0 ||
+      refund.currency !== "INR"
+    ) {
+      return null;
+    }
+    return {
+      eventType: "refund",
+      providerOrderId: null,
+      providerPaymentId: refund.payment_id,
+      amountInPaise: refund.amount,
+      currency: refund.currency,
+      paymentStatus: "refund_pending",
+      providerRefundId: refund.id,
+      refundAmountInPaise: refund.amount,
+      refundStatus,
+    };
+  }
+
   const entity = event.payload?.payment?.entity;
   if (!entity) return null;
 
@@ -44,12 +86,15 @@ function parsePaymentEvent(value: unknown): Omit<
     typeof entity.id !== "string" ||
     typeof entity.order_id !== "string" ||
     typeof entity.amount !== "number" ||
+    !Number.isSafeInteger(entity.amount) ||
+    entity.amount <= 0 ||
     typeof entity.currency !== "string"
   ) {
     return null;
   }
 
   return {
+    eventType: "payment",
     providerOrderId: entity.order_id,
     providerPaymentId: entity.id,
     amountInPaise: entity.amount,

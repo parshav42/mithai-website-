@@ -8,6 +8,15 @@ export type OrderStatus =
   | "cancelled"
   | "payment_received_review_required";
 
+export type FulfillmentStatus =
+  | "new"
+  | "preparing"
+  | "ready_for_dispatch"
+  | "out_for_delivery"
+  | "delivered"
+  | "picked_up"
+  | "cancelled";
+
 export type PaymentStatus =
   | "created"
   | "pending"
@@ -15,6 +24,8 @@ export type PaymentStatus =
   | "captured"
   | "failed"
   | "cancelled"
+  | "refund_pending"
+  | "partially_refunded"
   | "refunded";
 
 export type PaymentOrderLine = {
@@ -37,8 +48,10 @@ export type PersistedPaymentOrder = {
   amountInPaise: number;
   currency: PaymentCurrency;
   orderStatus: OrderStatus;
+  fulfillmentStatus: FulfillmentStatus;
   paymentStatus: PaymentStatus;
   providerPaymentId: string | null;
+  refundedAmountInPaise: number;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -48,8 +61,10 @@ export type NewPaymentOrder = Omit<
   | "id"
   | "providerOrderId"
   | "orderStatus"
+  | "fulfillmentStatus"
   | "paymentStatus"
   | "providerPaymentId"
+  | "refundedAmountInPaise"
   | "createdAt"
   | "updatedAt"
 > & {
@@ -59,11 +74,15 @@ export type NewPaymentOrder = Omit<
 
 export type VerifiedProviderEvent = {
   providerEventId: string;
-  providerOrderId: string;
+  eventType: "payment" | "refund";
+  providerOrderId: string | null;
   providerPaymentId: string;
   amountInPaise: number;
   currency: string;
   paymentStatus: PaymentStatus;
+  providerRefundId?: string;
+  refundAmountInPaise?: number;
+  refundStatus?: "pending" | "processed" | "failed";
 };
 
 export type ProcessProviderEventResult =

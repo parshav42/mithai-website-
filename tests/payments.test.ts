@@ -52,15 +52,18 @@ class TestPaymentStore implements PaymentOrderStore {
   readonly processedEvents = new Set<string>();
 
   async createPendingOrder(input: NewPaymentOrder) {
-    this.order = {
+    const order: PersistedPaymentOrder = {
       ...input,
       id: "database-order-test-id",
       providerOrderId: null,
       providerPaymentId: null,
+      fulfillmentStatus: "new",
+      refundedAmountInPaise: 0,
       createdAt: new Date(0),
       updatedAt: new Date(0),
     };
-    return this.order;
+    this.order = order;
+    return order;
   }
 
   async attachProviderOrder(orderId: string, providerOrderId: string) {
@@ -323,7 +326,9 @@ test("invalid checkout payment signatures do not verify or update saved orders",
     amountInPaise: 25_100,
     currency: "INR",
     orderStatus: "awaiting_payment",
+    fulfillmentStatus: "new",
     paymentStatus: "created",
+    refundedAmountInPaise: 0,
     createdAt: new Date(0),
     updatedAt: new Date(0),
   };
@@ -367,7 +372,9 @@ test("server-fetched captured payment remains separate from shop confirmation", 
     amountInPaise: 25_100,
     currency: "INR",
     orderStatus: "awaiting_payment",
+    fulfillmentStatus: "new",
     paymentStatus: "created",
+    refundedAmountInPaise: 0,
     createdAt: new Date(0),
     updatedAt: new Date(0),
   };
@@ -454,12 +461,15 @@ test("deduplicates webhook events and records captured payment separately from s
     amountInPaise: 25_100,
     currency: "INR",
     orderStatus: "awaiting_payment",
+    fulfillmentStatus: "new",
     paymentStatus: "created",
+    refundedAmountInPaise: 0,
     createdAt: new Date(0),
     updatedAt: new Date(0),
   };
   const event: VerifiedProviderEvent = {
     providerEventId: "evt_test_1",
+    eventType: "payment",
     providerOrderId: "order_test_123",
     providerPaymentId: "pay_test_123",
     amountInPaise: 25_100,
