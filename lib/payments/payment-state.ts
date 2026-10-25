@@ -15,8 +15,21 @@ export function transitionPaymentState(
   current: PaymentTransition,
   nextPaymentStatus: PaymentStatus,
 ): PaymentTransition {
+  if (current.paymentStatus === "refunded" && nextPaymentStatus !== "refunded") {
+    return current;
+  }
   if (current.paymentStatus === "captured" && nextPaymentStatus !== "captured") {
     return current;
+  }
+
+  if (nextPaymentStatus === "refunded") {
+    return {
+      orderStatus:
+        current.orderStatus === "confirmed"
+          ? "confirmed"
+          : "payment_received_review_required",
+      paymentStatus: "refunded",
+    };
   }
 
   if (nextPaymentStatus === "captured") {

@@ -1,4 +1,3 @@
-import "server-only";
 import type { PaymentOrderStore } from "./order-model.ts";
 import type {
   PaymentProvider,
@@ -9,8 +8,11 @@ import type {
 export type VerifyPaymentResult =
   | {
       success: true;
-      paymentStatus: "captured" | "authorized" | "pending" | "failed";
-      orderStatus: "awaiting_shop_confirmation" | "awaiting_payment";
+      paymentStatus: "captured" | "authorized" | "pending" | "failed" | "refunded";
+      orderStatus:
+        | "awaiting_shop_confirmation"
+        | "awaiting_payment"
+        | "payment_received_review_required";
     }
   | { success: false; status: 400 | 404 | 503; error: string };
 
@@ -68,6 +70,8 @@ export async function verifyPaymentAndRecord(
         ? "authorized"
         : payment.status === "failed"
           ? "failed"
+          : payment.status === "refunded"
+            ? "refunded"
           : "pending";
   await store.recordVerifiedPayment(order.id, payment.providerPaymentId, paymentStatus);
 
@@ -77,6 +81,8 @@ export async function verifyPaymentAndRecord(
     orderStatus:
       paymentStatus === "captured"
         ? "awaiting_shop_confirmation"
-        : "awaiting_payment",
+        : paymentStatus === "refunded"
+          ? "payment_received_review_required"
+          : "awaiting_payment",
   };
 }

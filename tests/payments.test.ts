@@ -57,6 +57,8 @@ class TestPaymentStore implements PaymentOrderStore {
       id: "database-order-test-id",
       providerOrderId: null,
       providerPaymentId: null,
+      createdAt: new Date(0),
+      updatedAt: new Date(0),
     };
     return this.order;
   }
@@ -82,9 +84,9 @@ class TestPaymentStore implements PaymentOrderStore {
     assert.equal(orderId, this.order?.id);
     if (this.order) {
       this.order.providerPaymentId = providerPaymentId;
-      this.order.paymentStatus = paymentStatus;
-      this.order.orderStatus =
-        paymentStatus === "captured" ? "awaiting_shop_confirmation" : "awaiting_payment";
+      const next = transitionPaymentState(this.order, paymentStatus);
+      this.order.paymentStatus = next.paymentStatus;
+      this.order.orderStatus = next.orderStatus;
     }
   }
 
@@ -322,6 +324,8 @@ test("invalid checkout payment signatures do not verify or update saved orders",
     currency: "INR",
     orderStatus: "awaiting_payment",
     paymentStatus: "created",
+    createdAt: new Date(0),
+    updatedAt: new Date(0),
   };
   const provider: PaymentProvider = {
     async createOrder() {
@@ -347,32 +351,91 @@ test("invalid checkout payment signatures do not verify or update saved orders",
   assert.equal(store.order.orderStatus, "awaiting_payment");
 });
 
-test("rejects invalid webhook signatures while using the official SDK verifier", () => {
+test("server-fetched captured payment remains separate from shop confirmation", async () => {
+  const store = new TestPaymentStore();
+  store.order = {
+    id: "db-id",
+    receipt: "receipt_test",
+    providerOrderId: "order_test_123",
+    providerPaymentId: null,
+    customerName: "Asha",
+    customerPhone: "9876543210",
+    fulfillment: "pickup",
+    deliveryAddress: null,
+    instructions: null,
+    lines: [],
+    amountInPaise: 25_100,
+    currency: "INR",
+    orderStatus: "awaiting_payment",
+    paymentStatus: "created",
+    createdAt: new Date(0),
+    updatedAt: new Date(0),
+  };
+  const signature = signedPayment(
+    "order_test_123",
+    "pay_test_123",
+    configuredEnvironment.RAZORPAY_KEY_SECRET!,
+  );
+  const provider: PaymentProvider = {
+    async createOrder() {
+      throw new Error("Not used");
+    },
+    verifyPayment: (verification) =>
+      verification.signature === signature &&
+      verification.providerOrderId === "order_test_123",
+    verifyWebhook: () => false,
+    async fetchPayment(paymentId) {
+      return {
+        providerOrderId: "order_test_123",
+        providerPaymentId: paymentId,
+        amountInPaise: 25_100,
+        currency: "INR",
+        status: "captured",
+      };
+    },
+  };
+
+  const result = await verifyPaymentAndRecord(
+    {
+      providerOrderId: "order_test_123",
+      providerPaymentId: "pay_test_123",
+      signature,
+    },
+    { environment: configuredEnvironment, provider, store },
+  );
+  assert.equal(result.success, true);
+  if (result.success) {
+    assert.equal(result.paymentStatus, "captured");
+    assert.equal(result.orderStatus, "awaiting_shop_confirmation");
+  }
+  assert.equal(store.order.paymentStatus, "captured");
+  assert.equal(store.order.orderStatus, "awaiting_shop_confirmation");
+});
+
+test("rejects invalid webhook signatures and verifies the exact raw body with the official SDK", () => {
   const { client } = sdkMock();
-  let receivedRawBody = "";
   const provider = createRazorpayPaymentProvider({
     keyId: configuredEnvironment.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
     keySecret: configuredEnvironment.RAZORPAY_KEY_SECRET!,
     sdkFactory: () => client,
-    verifyWebhookSignature: (rawBody, signature, secret) => {
-      receivedRawBody = rawBody;
-      return signature === "valid-test-signature" && secret === "test-webhook-secret";
-    },
   });
+  const rawBody = '{"event":"payment.captured","payload":{}}';
+  const signature = createHmac("sha256", "test-webhook-secret")
+    .update(rawBody)
+    .digest("hex");
 
   assert.equal(
-    provider.verifyWebhook('{"event":"payment.captured"}', "invalid", "test-webhook-secret"),
+    provider.verifyWebhook(rawBody, "0".repeat(64), "test-webhook-secret"),
     false,
   );
   assert.equal(
-    provider.verifyWebhook(
-      '{"event":"payment.captured"}',
-      "valid-test-signature",
-      "test-webhook-secret",
-    ),
+    provider.verifyWebhook(rawBody, "short-signature", "test-webhook-secret"),
+    false,
+  );
+  assert.equal(
+    provider.verifyWebhook(rawBody, signature, "test-webhook-secret"),
     true,
   );
-  assert.equal(receivedRawBody, '{"event":"payment.captured"}');
 });
 
 test("deduplicates webhook events and records captured payment separately from shop confirmation", async () => {
@@ -392,6 +455,8 @@ test("deduplicates webhook events and records captured payment separately from s
     currency: "INR",
     orderStatus: "awaiting_payment",
     paymentStatus: "created",
+    createdAt: new Date(0),
+    updatedAt: new Date(0),
   };
   const event: VerifiedProviderEvent = {
     providerEventId: "evt_test_1",

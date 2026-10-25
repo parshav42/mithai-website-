@@ -225,7 +225,11 @@ export function CheckoutPage({
             setPaymentMessage(
               responseData.paymentStatus === "captured"
                 ? "Payment was verified by Razorpay. The shop must still confirm your order."
-                : "Payment is not captured yet. Your order is not confirmed; the shop will need to verify its status.",
+                : responseData.paymentStatus === "failed"
+                  ? "Razorpay reports that the payment failed. Your order is not confirmed."
+                  : responseData.paymentStatus === "refunded"
+                    ? "Razorpay reports that this payment was refunded. The shop must review the order."
+                    : "Payment is not captured yet. Your order is not confirmed; the shop will need to verify its status.",
             );
           } catch {
             setPaymentMessage(

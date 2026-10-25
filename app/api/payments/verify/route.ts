@@ -73,7 +73,11 @@ export async function POST(request: Request) {
       message:
         result.paymentStatus === "captured"
           ? "Payment has been verified. The shop must still confirm your order."
-          : "Payment is not captured yet. The order is not confirmed.",
+          : result.paymentStatus === "refunded"
+            ? "Razorpay reports this payment as refunded. The shop must review the order."
+            : result.paymentStatus === "failed"
+              ? "Razorpay reports that this payment failed. The order is not confirmed."
+              : "Payment is not captured yet. The order is not confirmed.",
     },
     { status: 200 },
   );

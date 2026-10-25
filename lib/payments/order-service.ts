@@ -90,6 +90,18 @@ export async function createPaymentOrder(
       paymentStatus: "created",
     });
     orderId = savedOrder.id;
+    if (
+    savedOrder.amountInPaise !== Number(amountInPaise) ||
+    savedOrder.currency !== "INR" ||
+    savedOrder.receipt !== receipt
+    ) {
+    await store.markProviderOrderCreationFailed(savedOrder.id);
+    return {
+      success: false,
+      status: 502,
+      error: "The saved order does not match the validated checkout. No payment was started.",
+    };
+    }
 
     const provider = createRazorpayPaymentProvider({
       keyId: environment.NEXT_PUBLIC_RAZORPAY_KEY_ID,

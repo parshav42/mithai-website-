@@ -14,7 +14,8 @@ export type PaymentStatus =
   | "authorized"
   | "captured"
   | "failed"
-  | "cancelled";
+  | "cancelled"
+  | "refunded";
 
 export type PaymentOrderLine = {
   productId: string;
@@ -38,6 +39,8 @@ export type PersistedPaymentOrder = {
   orderStatus: OrderStatus;
   paymentStatus: PaymentStatus;
   providerPaymentId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
 };
 
 export type NewPaymentOrder = Omit<
@@ -47,6 +50,8 @@ export type NewPaymentOrder = Omit<
   | "orderStatus"
   | "paymentStatus"
   | "providerPaymentId"
+  | "createdAt"
+  | "updatedAt"
 > & {
   orderStatus: "awaiting_payment";
   paymentStatus: "created";
@@ -72,11 +77,18 @@ export interface PaymentOrderStore {
   attachProviderOrder(orderId: string, providerOrderId: string): Promise<void>;
   markProviderOrderCreationFailed(orderId: string): Promise<void>;
   findByProviderOrderId(providerOrderId: string): Promise<PersistedPaymentOrder | null>;
+  /**
+   * Must apply the same non-regressive payment transition as webhook updates.
+   */
   recordVerifiedPayment(
     orderId: string,
     providerPaymentId: string,
     paymentStatus: PaymentStatus,
   ): Promise<void>;
+  /**
+   * Must atomically enforce unique providerEventId, match order/amount/currency,
+   * and apply the payment transition so retries and concurrent deliveries are safe.
+   */
   processProviderEvent(
     event: VerifiedProviderEvent,
   ): Promise<ProcessProviderEventResult>;

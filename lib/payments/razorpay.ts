@@ -115,7 +115,11 @@ export function verifyRazorpayWebhookSignature(
   verifier: (rawBody: string, signature: string, secret: string) => boolean =
     Razorpay.validateWebhookSignature,
 ): boolean {
-  return Boolean(signature && secret) && verifier(rawBody, signature, secret);
+  return (
+    /^[a-f\d]{64}$/i.test(signature) &&
+    Boolean(secret) &&
+    verifier(rawBody, signature, secret)
+  );
 }
 
 export function createRazorpayPaymentProvider(
