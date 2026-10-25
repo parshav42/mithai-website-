@@ -1,4 +1,5 @@
-import { ArrowDown, ArrowRight, Sparkles } from "lucide-react";
+import Image from "next/image";
+import { ArrowDown, ArrowRight } from "lucide-react";
 import { AnnouncementBar } from "@/components/announcement-bar";
 import { Button } from "@/components/button";
 import { Container } from "@/components/container";
@@ -7,18 +8,60 @@ import { Navbar } from "@/components/navbar";
 import { ProductCard } from "@/components/product-card";
 
 const categories = [
-  { name: "Kaju Katli", detail: "A beloved classic", style: "ivory" },
-  { name: "Ladoo", detail: "A festive favourite", style: "saffron" },
-  { name: "Barfi", detail: "A timeless treat", style: "maroon" },
-  { name: "Rasgulla", detail: "A soft, syrupy sweet", style: "ivory" },
-  { name: "Peda", detail: "A cherished tradition", style: "maroon" },
-  { name: "Jalebi", detail: "A golden indulgence", style: "saffron" },
+  {
+    name: "Kaju Katli",
+    image: "/images/mithai-assortment.jpg",
+    alt: "Illustrative photograph of assorted Indian sweets arranged on a traditional platter.",
+    position: "50% 45%",
+  },
+  {
+    name: "Ladoo",
+    image: "/images/ladoo.jpg",
+    alt: "Illustrative photograph of round ladoos on a silver plate.",
+    position: "50% 45%",
+  },
+  {
+    name: "Barfi",
+    image: "/images/hero-mithai.jpg",
+    alt: "Illustrative photograph of an assortment of traditional Indian sweets.",
+    position: "76% 65%",
+  },
+  {
+    name: "Rasgulla",
+    image: "/images/gifting-mithai.jpg",
+    alt: "Illustrative photograph of assorted Indian sweets on a festive platter.",
+    position: "27% 28%",
+  },
+  {
+    name: "Peda",
+    image: "/images/mithai-assortment.jpg",
+    alt: "Illustrative photograph of assorted Indian sweets arranged for sharing.",
+    position: "72% 35%",
+  },
+  {
+    name: "Jalebi",
+    image: "/images/jalebi.jpg",
+    alt: "Illustrative photograph of a jalebi sweet served with rose petals.",
+    position: "50% 52%",
+  },
 ] as const;
 
 const products = [
-  { name: "Kaju Katli", style: "ivory" },
-  { name: "Motichoor Ladoo", style: "saffron" },
-  { name: "Pista Barfi", style: "maroon" },
+  {
+    name: "Kaju Katli",
+    image: "/images/mithai-assortment.jpg",
+    imageAlt: "Illustrative photograph of assorted Indian sweets; not shop product photography.",
+  },
+  {
+    name: "Motichoor Ladoo",
+    image: "/images/ladoo.jpg",
+    imageAlt: "Illustrative photograph of ladoos on a silver plate; not shop product photography.",
+  },
+  {
+    name: "Jalebi",
+    image: "/images/jalebi.jpg",
+    imageAlt: "Illustrative photograph of jalebi; not shop product photography.",
+  },
 ] as const;
 
 export default function Home() {
@@ -34,110 +77,114 @@ export default function Home() {
       <Navbar />
       <main id="main-content">
         <section id="home" className="relative overflow-hidden bg-ivory">
-          <Container className="grid min-h-[35rem] items-center gap-10 py-12 md:min-h-[39rem] md:grid-cols-[1.02fr_0.98fr] md:gap-8 md:py-16">
-            <div className="relative z-10 max-w-xl">
-              <p className="eyebrow flex items-center gap-2">
-                <span className="h-px w-8 bg-gold" />
+          <Container className="grid items-center gap-9 py-9 sm:gap-12 sm:py-12 md:min-h-[39rem] md:grid-cols-[0.92fr_1.08fr] md:gap-8 md:py-14 lg:gap-14">
+            <div className="relative z-10 max-w-xl md:py-8">
+              <p className="eyebrow flex items-center gap-3">
+                <span aria-hidden="true" className="h-px w-9 bg-gold" />
                 A sweeter kind of together
               </p>
-              <h1 className="mt-5 font-display text-[clamp(3.5rem,8vw,6.5rem)] leading-[0.98] tracking-[-0.055em] text-maroon">
+              <h1 className="mt-5 font-display text-[clamp(3.35rem,8.1vw,6.6rem)] leading-[0.95] tracking-[-0.055em] text-maroon">
                 A Tradition
                 <br />
                 of Sweetness<span className="text-gold">.</span>
               </h1>
-              <p className="mt-6 max-w-md text-base leading-7 text-brown/75 sm:text-lg sm:leading-8">
+              <p className="mt-6 max-w-md text-base leading-7 text-brown/80 sm:text-lg sm:leading-8">
                 Discover beloved Indian sweets, thoughtfully prepared for life&apos;s sweetest
                 moments.
               </p>
-              <div className="mt-8 flex flex-wrap gap-3">
-                <Button href="#bestsellers">
+              <div className="mt-8 flex flex-col gap-3 min-[420px]:flex-row min-[420px]:flex-wrap">
+                <Button href="#bestsellers" className="w-full min-[420px]:w-auto">
                   Shop Mithai <ArrowRight aria-hidden="true" size={16} />
                 </Button>
-                <Button href="#gifting" variant="outline">
+                <Button
+                  href="#gifting"
+                  variant="outline"
+                  className="w-full min-[420px]:w-auto"
+                >
                   Explore Gift Boxes
                 </Button>
               </div>
-              <p className="mt-7 text-xs leading-5 text-brown/55">
-                Product range and imagery are illustrative placeholders pending shop details.
+              <p className="mt-5 text-xs leading-5 text-brown/75">
+                Illustrative photography and example sweets. The shop&apos;s own range is to
+                be confirmed.
               </p>
             </div>
-            <div
-              role="img"
-              aria-label="Decorative hero image placeholder; shop photography to be provided"
-              className="placeholder-art placeholder-art--maroon relative mx-auto flex aspect-[1.12/1] w-full max-w-[34rem] items-center justify-center md:aspect-[0.94/1]"
-            >
-              <div className="absolute inset-[9%] border border-gold/50" />
-              <div className="relative flex size-[66%] items-center justify-center rounded-full border border-gold/50">
-                <div className="absolute inset-[10%] rounded-full border border-ivory/25" />
-                <div className="text-center text-ivory">
-                  <Sparkles aria-hidden="true" className="mx-auto mb-4 text-gold" size={25} />
-                  <p className="font-display text-3xl leading-tight sm:text-4xl">
-                    Sweetness,
-                    <br />
-                    shared.
-                  </p>
-                  <p className="mt-4 text-[0.6rem] font-semibold tracking-[0.2em] text-ivory/70">
-                    HERO PHOTO PLACEHOLDER
-                  </p>
-                </div>
+
+            <figure className="relative mx-auto w-full max-w-[43rem] md:mr-0">
+              <div className="relative aspect-[1.16/1] overflow-hidden border-[7px] border-white bg-[#d9b66f] sm:border-[10px] md:aspect-[0.98/1]">
+                <Image
+                  src="/images/hero-mithai.jpg"
+                  alt="Illustrative photograph of assorted Indian mithai on ornate serving platters."
+                  fill
+                  priority
+                  sizes="(min-width: 768px) 52vw, 100vw"
+                  className="object-cover"
+                />
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-3 border border-white/60 sm:inset-5"
+                />
+                <span className="absolute bottom-3 left-3 bg-ivory px-2.5 py-1.5 text-[0.58rem] font-semibold tracking-[0.12em] text-brown sm:bottom-5 sm:left-5">
+                  ILLUSTRATIVE PHOTOGRAPH · UNSPLASH
+                </span>
               </div>
-              <span className="absolute bottom-5 left-5 text-[0.6rem] font-semibold tracking-[0.16em] text-ivory/70">
-                TRADITION · TOGETHERNESS · TREAT
-              </span>
-            </div>
+              <figcaption className="mt-3 flex items-center justify-between gap-2 text-[0.58rem] font-semibold tracking-[0.15em] text-brown/75 sm:text-[0.65rem]">
+                <span>TRADITION, SHARED</span>
+                <span aria-hidden="true" className="h-px flex-1 bg-gold/60" />
+                <span>INDIAN MITHAI</span>
+              </figcaption>
+            </figure>
           </Container>
           <a
             href="#categories"
             aria-label="Scroll to mithai categories"
-            className="absolute bottom-5 left-1/2 hidden -translate-x-1/2 text-maroon/60 transition-colors hover:text-maroon md:block"
+            className="absolute bottom-5 left-1/2 hidden -translate-x-1/2 text-maroon/70 transition-transform hover:translate-y-1 md:block"
           >
-            <ArrowDown aria-hidden="true" size={20} />
+            <ArrowDown aria-hidden="true" size={19} />
           </a>
         </section>
 
         <section id="categories" className="section-space bg-white">
           <Container>
-            <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
+            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end sm:gap-8">
               <div>
-                <p className="eyebrow">Something for every sweet tooth</p>
+                <p className="eyebrow">An introduction to Indian sweets</p>
                 <h2 className="section-heading mt-3 text-brown">Explore mithai</h2>
               </div>
-              <p className="max-w-sm text-sm leading-6 text-brown/65">
-                A first look at much-loved Indian sweet varieties. The shop&apos;s actual
-                assortment is to be confirmed.
+              <p className="max-w-sm text-sm leading-6 text-brown/75">
+                Six familiar sweet varieties, shown as examples. The shop&apos;s actual
+                selection will be added once confirmed.
               </p>
             </div>
-            <div className="mt-9 grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 sm:gap-x-6 lg:mt-12 lg:gap-x-8">
-              {categories.map((category) => (
-                <a
-                  key={category.name}
-                  href="#bestsellers"
-                  className="group min-w-0"
-                  aria-label={`Explore ${category.name} in the illustrative mithai assortment`}
-                >
-                  <div
-                    role="img"
-                    aria-label={`${category.name} image placeholder; product photography to be provided`}
-                    className={`placeholder-art ${category.style === "maroon" ? "placeholder-art--maroon" : category.style === "saffron" ? "placeholder-art--saffron" : ""} relative aspect-[1.1/1] transition-transform duration-300 group-hover:scale-[1.015]`}
-                  >
-                    <span className="absolute inset-x-2 bottom-2 mx-auto w-fit bg-ivory/90 px-2 py-1 text-[0.52rem] font-semibold tracking-[0.08em] text-brown sm:bottom-3 sm:text-[0.58rem]">
-                      PHOTO PLACEHOLDER
-                    </span>
-                  </div>
-                  <div className="flex items-start justify-between gap-1 pt-3 sm:pt-4">
-                    <div className="min-w-0">
-                      <h3 className="font-display text-lg leading-tight text-brown sm:text-2xl">
-                        {category.name}
-                      </h3>
-                      <p className="mt-1 text-xs text-brown/60 sm:text-sm">{category.detail}</p>
+            <div className="mt-8 grid grid-cols-2 gap-x-4 gap-y-7 sm:mt-11 sm:grid-cols-3 sm:gap-x-6 lg:gap-x-8">
+              {categories.map((category, index) => (
+                <article key={category.name} className="group min-w-0">
+                  <figure>
+                    <div className="relative aspect-[1.07/1] overflow-hidden bg-[#ead9bb]">
+                      <Image
+                        src={category.image}
+                        alt={category.alt}
+                        fill
+                        sizes="(min-width: 1024px) 30vw, (min-width: 640px) 45vw, 50vw"
+                        className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+                        style={{ objectPosition: category.position }}
+                      />
+                      <span className="absolute bottom-2 left-2 bg-ivory px-2 py-1 text-[0.5rem] font-semibold tracking-[0.1em] text-brown sm:bottom-3 sm:left-3 sm:text-[0.58rem]">
+                        ILLUSTRATIVE PHOTO
+                      </span>
                     </div>
-                    <ArrowRight
-                      aria-hidden="true"
-                      size={16}
-                      className="mt-1 shrink-0 text-gold transition-transform group-hover:translate-x-1"
-                    />
-                  </div>
-                </a>
+                    <figcaption className="flex items-center justify-between gap-2 border-b border-gold/35 py-3 sm:py-4">
+                      <span className="flex min-w-0 items-center gap-2 sm:gap-3">
+                        <span className="font-sans text-[0.57rem] font-semibold tracking-[0.12em] text-maroon sm:text-[0.65rem]">
+                          0{index + 1}
+                        </span>
+                        <span className="truncate font-display text-lg leading-tight text-brown sm:text-2xl">
+                          {category.name}
+                        </span>
+                      </span>
+                    </figcaption>
+                  </figure>
+                </article>
               ))}
             </div>
           </Container>
@@ -145,17 +192,17 @@ export default function Home() {
 
         <section id="bestsellers" className="section-space bg-ivory">
           <Container>
-            <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
+            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end sm:gap-8">
               <div>
-                <p className="eyebrow">A taste of the classics</p>
-                <h2 className="section-heading mt-3 text-brown">Beloved, by tradition</h2>
+                <p className="eyebrow">A first taste of the classics</p>
+                <h2 className="section-heading mt-3 text-brown">Sweet things to discover</h2>
               </div>
-              <p className="max-w-sm text-sm leading-6 text-brown/65">
-                Representative mithai only. Product availability, ingredients and pricing
-                have not yet been provided by the shop.
+              <p className="max-w-sm text-sm leading-6 text-brown/75">
+                These are illustrative examples, not a confirmed product list. Product
+                details and prices will appear when supplied by the shop.
               </p>
             </div>
-            <div className="mt-9 grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-6 lg:mt-12 lg:gap-8">
+            <div className="mt-8 grid grid-cols-1 gap-x-5 gap-y-8 sm:mt-11 sm:grid-cols-3 sm:gap-x-6 lg:gap-x-8">
               {products.map((product) => (
                 <ProductCard key={product.name} {...product} />
               ))}
@@ -164,46 +211,71 @@ export default function Home() {
         </section>
 
         <section id="gifting" className="bg-maroon">
-          <Container className="grid items-center gap-8 py-12 sm:py-16 md:grid-cols-[1fr_auto] md:gap-12 md:py-20">
-            <div className="max-w-2xl">
-              <p className="eyebrow text-gold">A thoughtful way to say it</p>
-              <h2 className="mt-3 font-display text-4xl leading-tight tracking-[-0.035em] text-ivory sm:text-5xl">
-                Make a little room for sweetness.
+          <Container className="grid items-stretch py-8 sm:py-10 md:grid-cols-[1.03fr_0.97fr]">
+            <figure className="relative min-h-64 overflow-hidden bg-[#8b5b32] sm:min-h-80 md:min-h-[25rem]">
+              <Image
+                src="/images/gifting-mithai.jpg"
+                alt="Illustrative photograph of traditional Indian sweets on a festive platter."
+                fill
+                sizes="(min-width: 768px) 50vw, 100vw"
+                className="object-cover"
+              />
+              <span className="absolute bottom-3 left-3 bg-ivory px-2.5 py-1.5 text-[0.58rem] font-semibold tracking-[0.12em] text-brown">
+                ILLUSTRATIVE PHOTOGRAPH · UNSPLASH
+              </span>
+            </figure>
+            <div className="relative flex flex-col justify-center px-2 py-9 text-ivory sm:px-7 sm:py-12 md:px-10 lg:px-14">
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute right-3 top-4 font-display text-7xl text-gold/20 sm:right-6 sm:top-6 sm:text-8xl"
+              >
+                ❧
+              </span>
+              <p className="eyebrow text-gold">For the moments we gather</p>
+              <h2 className="mt-4 max-w-lg font-display text-4xl leading-[1.07] tracking-[-0.04em] text-ivory sm:text-5xl lg:text-6xl">
+                A little sweetness, beautifully shared.
               </h2>
-              <p className="mt-4 max-w-lg text-sm leading-6 text-ivory/75 sm:text-base">
-                Explore the idea of sharing mithai with someone special. Gift box designs
-                and availability will be added once confirmed.
+              <p className="mt-5 max-w-md text-sm leading-6 text-ivory/85 sm:text-base sm:leading-7">
+                Weddings, festivals and family celebrations bring people together.
+                Bring a little sweetness to the occasion.
+              </p>
+              <p className="mt-6 border-t border-gold/45 pt-4 text-xs leading-5 text-ivory/80">
+                Gift box styles, availability and delivery details are to be confirmed by
+                the shop.
               </p>
             </div>
-            <p className="max-w-60 border border-gold/50 px-4 py-3 text-xs leading-5 text-ivory/80">
-              Gift box designs and availability will be shared once confirmed by the shop.
-            </p>
           </Container>
         </section>
 
         <section id="our-story" className="section-space bg-white">
-          <Container className="grid items-center gap-10 md:grid-cols-2 md:gap-16">
-            <div
-              role="img"
-              aria-label="Decorative image placeholder; shop and maker photography to be provided"
-              className="placeholder-art placeholder-art--saffron relative aspect-[1.2/1] md:aspect-[1.05/1]"
-            >
-              <span className="absolute inset-x-3 bottom-3 mx-auto w-fit bg-ivory/90 px-3 py-1.5 text-[0.58rem] font-semibold tracking-[0.1em] text-brown">
-                OUR STORY PHOTO PLACEHOLDER
+          <Container className="grid items-center gap-8 sm:gap-12 md:grid-cols-[0.95fr_1.05fr] md:gap-16">
+            <div className="relative max-w-xl md:order-2">
+              <p className="eyebrow">Our story</p>
+              <h2 className="section-heading mt-3 text-brown">
+                Every shop has a story worth telling.
+              </h2>
+              <p className="mt-5 text-base leading-7 text-brown/80">
+                This space is reserved for the shop&apos;s own history and the people behind
+                it. We&apos;ll share their story here once it has been provided by the
+                business.
+              </p>
+              <span
+                aria-hidden="true"
+                className="mt-7 block h-px w-16 bg-gold"
+              />
+            </div>
+            <figure className="relative aspect-[1.12/1] overflow-hidden bg-[#ead9bb] md:order-1 md:aspect-[1.03/1]">
+              <Image
+                src="/images/ladoo.jpg"
+                alt="Illustrative photograph of ladoos being shared on a silver platter."
+                fill
+                sizes="(min-width: 768px) 45vw, 100vw"
+                className="object-cover"
+              />
+              <span className="absolute bottom-3 left-3 bg-ivory px-2.5 py-1.5 text-[0.58rem] font-semibold tracking-[0.12em] text-brown">
+                ILLUSTRATIVE PHOTOGRAPH · UNSPLASH
               </span>
-            </div>
-            <div className="max-w-lg">
-              <p className="eyebrow">A story still being written</p>
-              <h2 className="section-heading mt-3 text-brown">Rooted in the joy of sharing.</h2>
-              <p className="mt-5 text-base leading-7 text-brown/75">
-                Every sweet has a place at the table: a celebration, a visit, a small
-                moment made memorable. We&apos;re preparing this space to tell the story of
-                the people and traditions behind this shop.
-              </p>
-              <p className="mt-4 text-sm leading-6 text-brown/60">
-                The shop&apos;s history and details will be added when shared by the business.
-              </p>
-            </div>
+            </figure>
           </Container>
         </section>
       </main>

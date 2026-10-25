@@ -13,6 +13,7 @@
 :root {
   color-scheme: light;
   --page-width: 76rem;
+  --page-gutter: 2.5rem;
 }
 
 * {
@@ -56,7 +57,7 @@ a:focus-visible {
 }
 
 .container-width {
-  width: min(calc(100% - 2.5rem), var(--page-width));
+  width: min(calc(100% - var(--page-gutter)), var(--page-width));
   margin-inline: auto;
 }
 
@@ -81,53 +82,15 @@ a:focus-visible {
   line-height: 1.1;
 }
 
-.placeholder-art {
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  background:
-    radial-gradient(ellipse at 50% 54%, rgb(255 248 237 / 80%) 0 18%, transparent 19%),
-    repeating-conic-gradient(from 0deg at 50% 50%, rgb(201 154 69 / 17%) 0deg 2deg, transparent 2deg 15deg),
-    #ead9bb;
-}
-
-.placeholder-art::before,
-.placeholder-art::after {
-  position: absolute;
-  z-index: -1;
-  border: 1px solid rgb(107 24 39 / 25%);
-  border-radius: 50%;
-  content: "";
-  inset: 11%;
-}
-
-.placeholder-art::after {
-  inset: 20%;
-  transform: rotate(45deg);
-}
-
-.placeholder-art--maroon {
-  background:
-    radial-gradient(ellipse at 50% 54%, rgb(255 248 237 / 14%) 0 18%, transparent 19%),
-    repeating-conic-gradient(from 0deg at 50% 50%, rgb(201 154 69 / 19%) 0deg 2deg, transparent 2deg 15deg),
-    #591522;
-}
-
-.placeholder-art--maroon::before,
-.placeholder-art--maroon::after {
-  border-color: rgb(255 248 237 / 24%);
-}
-
-.placeholder-art--saffron {
-  background:
-    radial-gradient(ellipse at 50% 54%, rgb(255 248 237 / 75%) 0 18%, transparent 19%),
-    repeating-conic-gradient(from 0deg at 50% 50%, rgb(107 24 39 / 10%) 0deg 2deg, transparent 2deg 15deg),
-    #e8c789;
-}
-
 @media (max-width: 640px) {
   .container-width {
-    width: min(calc(100% - 2rem), var(--page-width));
+    --page-gutter: 2rem;
+  }
+}
+
+@media (max-width: 375px) {
+  .container-width {
+    --page-gutter: 1.5rem;
   }
 }
 
