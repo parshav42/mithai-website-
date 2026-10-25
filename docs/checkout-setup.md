@@ -161,7 +161,7 @@ for provider credentials. The app records provider acceptance and reference; a
 delivery callback is not configured, so accepted does not mean delivered.
 
 For an end-to-end local check, configure a test database and Razorpay test
-credentials, run the migrations, replace demonstration products with approved test
-products, place and verify an order, then confirm it in `/admin/orders`. The default
+credentials, run the migrations, create an approved test product in `/admin/products`,
+place and verify an order, then confirm it in `/admin/orders`. The default
 SMS mock should show an accepted notification with a mock reference. Test failures
 in a non-production environment before enabling MSG91 in production.
