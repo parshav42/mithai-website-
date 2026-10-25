@@ -18,7 +18,7 @@ export function AddToCartButton({ product }: { product: Product }) {
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <p className="font-semibold text-maroon">{formatPrice(product.priceInPaise!)}</p>
+      <p className="font-semibold text-maroon">{formatPrice(product.priceInPaise)}</p>
       <button
         type="button"
         disabled={!isReady}

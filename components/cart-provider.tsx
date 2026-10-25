@@ -9,6 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { X } from "lucide-react";
 import {
   calculateSubtotal,
   countCartItems,
@@ -109,7 +110,28 @@ export function CartProvider({ children }: { children: ReactNode }) {
     [addItem, clearNotice, isReady, items, notice, removeItem, setQuantity],
   );
 
-  return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
+  return (
+    <CartContext.Provider value={value}>
+      {children}
+      {notice && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed inset-x-4 bottom-4 z-50 mx-auto flex max-w-lg items-center justify-between gap-4 border border-gold bg-ivory px-4 py-3 text-sm text-brown shadow-lg"
+        >
+          <p>{notice}</p>
+          <button
+            type="button"
+            aria-label="Dismiss cart message"
+            onClick={clearNotice}
+            className="flex size-9 shrink-0 items-center justify-center text-maroon hover:bg-white"
+          >
+            <X aria-hidden="true" size={18} />
+          </button>
+        </div>
+      )}
+    </CartContext.Provider>
+  );
 }
 
 export function useCart() {
