@@ -7,14 +7,14 @@ import { Container } from "@/components/container";
 import { useCart } from "@/components/cart-provider";
 import {
   formatPrice,
-  getProductById,
   isPurchasable,
-  products,
 } from "@/data/products";
+import type { Product } from "@/data/products";
 
 export function CartPage() {
   const {
     items,
+    products,
     itemCount,
     subtotalInPaise,
     isReady,
@@ -35,10 +35,10 @@ export function CartPage() {
 
   const cartLines = Object.entries(items)
     .map(([productId, quantity]) => ({
-      product: getProductById(productId),
+      product: products.find((item) => item.id === productId),
       quantity,
     }))
-    .filter((line): line is { product: (typeof products)[number]; quantity: number } =>
+    .filter((line): line is { product: Product; quantity: number } =>
       Boolean(line.product),
     );
   const unavailableItems = cartLines.filter((line) => !isPurchasable(line.product));
@@ -50,8 +50,7 @@ export function CartPage() {
           <p className="eyebrow">A little room for something sweet</p>
           <h1 className="section-heading mt-3 text-maroon">Your cart is empty</h1>
           <p className="mx-auto mt-4 max-w-lg text-sm leading-6 text-brown/80">
-            Browse the demonstration catalog. Example items cannot be purchased until the
-            shop confirms prices and availability.
+            Browse the shop's current products to find something sweet.
           </p>
           <Link
             href="/products"
@@ -104,7 +103,7 @@ export function CartPage() {
                         <p className="mt-1 text-xs text-brown/70">
                           {product.isDemonstration
                             ? "Demonstration item · not confirmed shop inventory"
-                            : "Shop product"}
+                            : product.packageSize ?? "Shop product"}
                         </p>
                       </div>
                       <p className="text-sm font-semibold text-maroon">
@@ -138,7 +137,7 @@ export function CartPage() {
                         <button
                           type="button"
                           aria-label={`Increase ${product.name} quantity`}
-                          disabled={!purchasable || quantity >= 99}
+                          disabled={!purchasable || quantity >= 99 || (product.stockQuantity !== undefined && quantity >= product.stockQuantity)}
                           onClick={() => setQuantity(product.id, quantity + 1)}
                           className="flex size-10 items-center justify-center text-maroon hover:bg-ivory disabled:cursor-not-allowed disabled:opacity-40"
                         >

@@ -3,7 +3,7 @@ import { CheckoutPage } from "@/components/checkout-page";
 import { Footer } from "@/components/footer";
 import { Navbar } from "@/components/navbar";
 import { isWhatsAppConfigured } from "@/lib/checkout";
-import { products } from "@/data/products";
+import { listStorefrontProducts } from "@/lib/products";
 import {
   getPaymentSetupStatus,
   getRazorpayEnvironment,
@@ -17,7 +17,8 @@ export const metadata: Metadata = {
   description: "Review your sweets and prepare an order enquiry for the shop.",
 };
 
-export default function CheckoutRoute() {
+export default async function CheckoutRoute() {
+  const products = await listStorefrontProducts();
   return (
     <>
       <Navbar />

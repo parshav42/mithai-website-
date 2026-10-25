@@ -9,8 +9,10 @@ export function AddToCartButton({ product }: { product: Product }) {
   if (!isPurchasable(product)) {
     return (
       <p className="border border-gold/60 px-3 py-2 text-center text-[0.68rem] font-semibold leading-5 text-brown/80 sm:px-4 sm:text-xs">
-        {product.availability === "unavailable"
-          ? "Currently unavailable"
+        {product.stockQuantity === 0
+          ? "Out of stock"
+          : product.availability === "unavailable"
+            ? "Currently unavailable"
           : "Price & availability pending"}
       </p>
     );

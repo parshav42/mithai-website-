@@ -1,4 +1,4 @@
-import { getProductById, isPurchasable, products } from "../data/products";
+import { isPurchasable, type Product } from "../data/products";
 import { normalizeCart, updateCart, type CartItems } from "./cart";
 
 const STORAGE_KEY = "mithai-house-cart-v1";
@@ -17,15 +17,20 @@ const EMPTY_SNAPSHOT: CartSnapshot = {
 
 let snapshot = EMPTY_SNAPSHOT;
 let hasReadStorage = false;
+let catalogSignature = "";
+let activeCatalog: readonly Product[] = [];
 const listeners = new Set<() => void>();
 
 function notify() {
   listeners.forEach((listener) => listener());
 }
 
-function readStorage() {
-  if (hasReadStorage || typeof window === "undefined") return;
+function readStorage(catalog: readonly Product[]) {
+  if (typeof window === "undefined") return;
+  const signature = catalog.map((product) => product.id).join("|");
+  if (hasReadStorage && signature === catalogSignature) return;
   hasReadStorage = true;
+  catalogSignature = signature;
 
   try {
     const serialized = window.localStorage.getItem(STORAGE_KEY);
@@ -36,7 +41,7 @@ function readStorage() {
 
     try {
       const saved: unknown = JSON.parse(serialized);
-      const items = normalizeCart(saved, products);
+      const items = normalizeCart(saved, catalog);
       const invalidEntries =
         typeof saved === "object" &&
         saved !== null &&
@@ -73,14 +78,21 @@ export function getServerCartSnapshot() {
   return EMPTY_SNAPSHOT;
 }
 
+export function configureCartCatalog(catalog: readonly Product[]) {
+  activeCatalog = catalog;
+  hasReadStorage = false;
+  readStorage(catalog);
+  notify();
+}
+
 export function subscribeToCart(listener: () => void) {
   listeners.add(listener);
-  readStorage();
+  readStorage(activeCatalog);
 
   const handleStorage = (event: StorageEvent) => {
     if (event.key !== STORAGE_KEY && event.key !== null) return;
     hasReadStorage = false;
-    readStorage();
+    readStorage(activeCatalog);
     notify();
   };
   window.addEventListener("storage", handleStorage);
@@ -102,14 +114,14 @@ function persist(items: CartItems, notice = "") {
   notify();
 }
 
-export function addCartItem(productId: string) {
+export function addCartItem(productId: string, catalog: readonly Product[]) {
   if (!snapshot.isReady) {
     snapshot = { ...snapshot, notice: "Your saved cart is still loading. Please try again." };
     notify();
     return;
   }
 
-  const product = getProductById(productId);
+  const product = catalog.find((item) => item.id === productId);
   if (!product || !isPurchasable(product)) {
     snapshot = {
       ...snapshot,
@@ -126,24 +138,24 @@ export function addCartItem(productId: string) {
   }
 
   persist(
-    updateCart(snapshot.items, { type: "add", productId }, products),
+    updateCart(snapshot.items, { type: "add", productId }, catalog),
     `${product.name} added to your cart.`,
   );
 }
 
-export function setCartQuantity(productId: string, quantity: number) {
+export function setCartQuantity(productId: string, quantity: number, catalog: readonly Product[]) {
   const nextItems = updateCart(
     snapshot.items,
     { type: "set-quantity", productId, quantity },
-    products,
+    catalog,
   );
   if (nextItems !== snapshot.items) persist(nextItems);
 }
 
-export function removeCartItem(productId: string) {
+export function removeCartItem(productId: string, catalog: readonly Product[]) {
   if (!Object.hasOwn(snapshot.items, productId)) return;
   persist(
-    updateCart(snapshot.items, { type: "remove", productId }, products),
+    updateCart(snapshot.items, { type: "remove", productId }, catalog),
     "Item removed from your cart.",
   );
 }

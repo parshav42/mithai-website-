@@ -2,21 +2,31 @@
 
 import { useMemo, useState } from "react";
 import { ProductCard } from "@/components/product-card";
-import { productCategories, products } from "@/data/products";
+import type { Product } from "@/data/products";
 
-export function ProductBrowser({ initialCategory }: { initialCategory: string }) {
+export function ProductBrowser({
+  initialCategory,
+  categories,
+  products,
+}: {
+  initialCategory: string;
+  categories: Array<{ slug: string; name: string }>;
+  products: Product[];
+}) {
+  const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState(
-    productCategories.some((category) => category.slug === initialCategory)
+    categories.some((category) => category.slug === initialCategory)
       ? initialCategory
       : "all",
   );
 
   const visibleProducts = useMemo(
     () =>
-      selectedCategory === "all"
-        ? products
-        : products.filter((product) => product.category === selectedCategory),
-    [selectedCategory],
+      products.filter((product) =>
+        (selectedCategory === "all" || product.category === selectedCategory) &&
+        `${product.name} ${product.description}`.toLowerCase().includes(search.trim().toLowerCase()),
+      ),
+    [products, search, selectedCategory],
   );
 
   return (
@@ -30,7 +40,7 @@ export function ProductBrowser({ initialCategory }: { initialCategory: string })
         >
           All sweets
         </button>
-        {productCategories.map((category) => (
+        {categories.map((category) => (
           <button
             key={category.slug}
             type="button"
@@ -42,8 +52,18 @@ export function ProductBrowser({ initialCategory }: { initialCategory: string })
           </button>
         ))}
       </div>
+      <label className="mt-6 block max-w-md text-sm font-medium text-brown">
+        Search sweets
+        <input
+          type="search"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Search by product name"
+          className="mt-2 min-h-11 w-full border border-gold/60 px-3"
+        />
+      </label>
       <p className="sr-only" aria-live="polite">
-        Showing {visibleProducts.length} demonstration products
+        Showing {visibleProducts.length} products
       </p>
       {visibleProducts.length > 0 ? (
         <div className="mt-8 grid grid-cols-1 gap-x-5 gap-y-9 sm:grid-cols-2 sm:gap-x-6 lg:grid-cols-3 lg:gap-x-8">
@@ -55,7 +75,7 @@ export function ProductBrowser({ initialCategory }: { initialCategory: string })
         <div className="mt-12 border-y border-gold/40 py-12 text-center">
           <h2 className="font-display text-2xl text-brown">No sweets in this selection yet</h2>
           <p className="mt-2 text-sm text-brown/75">
-            This category has no catalog examples at the moment.
+            No products match this selection.
           </p>
           <button
             type="button"

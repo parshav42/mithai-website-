@@ -2,16 +2,17 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import type { PoolClient, QueryResultRow } from "pg";
 import { getDatabasePool, isDatabaseConfigured } from "../db.ts";
-import type {
-  FulfillmentStatus,
-  NewPaymentOrder,
-  OrderStatus,
-  PaymentOrderLine,
-  PaymentOrderStore,
-  PaymentStatus,
-  PersistedPaymentOrder,
-  ProcessProviderEventResult,
-  VerifiedProviderEvent,
+import {
+  InventoryConflictError,
+  type FulfillmentStatus,
+  type NewPaymentOrder,
+  type OrderStatus,
+  type PaymentOrderLine,
+  type PaymentOrderStore,
+  type PaymentStatus,
+  type PersistedPaymentOrder,
+  type ProcessProviderEventResult,
+  type VerifiedProviderEvent,
 } from "./order-model.ts";
 import { transitionPaymentState } from "./payment-state.ts";
 
@@ -39,6 +40,7 @@ type OrderRow = QueryResultRow & {
 type ItemRow = QueryResultRow & {
   product_id: string;
   product_name: string;
+  package_size: string;
   quantity: number;
   unit_price_in_paise: string | number;
 };
@@ -65,6 +67,7 @@ function toOrder(row: OrderRow, itemRows: ItemRow[]): PersistedPaymentOrder {
     lines: itemRows.map((item): PaymentOrderLine => ({
       productId: item.product_id,
       productName: item.product_name,
+      packageSize: item.package_size,
       quantity: item.quantity,
       unitPriceInPaise: safeMoney(item.unit_price_in_paise),
     })),
@@ -121,7 +124,7 @@ async function insertAudit(
 
 async function findItems(client: PoolClient, orderId: string) {
   const result = await client.query<ItemRow>(
-    `SELECT product_id, product_name, quantity, unit_price_in_paise
+    `SELECT product_id, product_name, package_size, quantity, unit_price_in_paise
      FROM order_items WHERE order_id = $1 ORDER BY id`,
     [orderId],
   );
@@ -134,6 +137,142 @@ async function findOrder(client: PoolClient, orderId: string, lock = false) {
     [orderId],
   );
   return result.rows[0] ?? null;
+}
+
+async function reserveInventory(
+  client: PoolClient,
+  orderId: string,
+  lines: PaymentOrderLine[],
+) {
+  const result = await client.query<{
+    id: string;
+    name: string;
+    package_size: string;
+    price_in_paise: string | number;
+    stock_quantity: number;
+    reserved_quantity: string;
+    is_available: boolean;
+    archived_at: Date | null;
+  }>(
+    `SELECT p.id, p.name, p.package_size, p.price_in_paise, p.stock_quantity,
+       p.is_available, p.archived_at,
+       COALESCE((
+         SELECT SUM(oi.quantity) FROM stock_reservations sr
+         JOIN order_items oi ON oi.order_id = sr.order_id
+         WHERE sr.status = 'reserved' AND sr.reserved_until > NOW()
+           AND oi.product_id = p.id::text
+       ), 0)::text AS reserved_quantity
+     FROM products p
+     WHERE p.id = ANY($1::uuid[])
+     ORDER BY p.id
+     FOR UPDATE OF p`,
+    [lines.map((line) => line.productId)],
+  );
+  if (result.rowCount !== lines.length) {
+    throw new InventoryConflictError("A product is no longer available. Refresh your cart and try again.");
+  }
+
+  for (const line of lines) {
+    const product = result.rows.find((row) => row.id === line.productId);
+    if (
+      !product ||
+      product.archived_at !== null ||
+      !product.is_available ||
+      product.name !== line.productName ||
+      product.package_size !== line.packageSize ||
+      safeMoney(product.price_in_paise) !== line.unitPriceInPaise
+    ) {
+      throw new InventoryConflictError("A product changed during checkout. Refresh your cart and try again.");
+    }
+    const available = product.stock_quantity - Number(product.reserved_quantity);
+    if (!Number.isInteger(available) || line.quantity > available) {
+      throw new InventoryConflictError(`${line.productName} no longer has enough stock.`);
+    }
+  }
+
+  await client.query(
+    `INSERT INTO stock_reservations (order_id, status, reserved_until)
+     VALUES ($1, 'reserved', NOW() + INTERVAL '15 minutes')`,
+    [orderId],
+  );
+}
+
+async function releaseReservation(
+  client: PoolClient,
+  orderId: string,
+  onlyExpired = false,
+) {
+  const result = await client.query(
+    `UPDATE stock_reservations SET status = 'released', updated_at = NOW()
+     WHERE order_id = $1 AND status = 'reserved'
+       ${onlyExpired ? "AND reserved_until <= NOW()" : ""}
+     RETURNING order_id`,
+    [orderId],
+  );
+  return result.rowCount === 1;
+}
+
+async function consumeReservation(client: PoolClient, orderId: string) {
+  const reservation = await client.query<{ status: string; reserved_until: Date }>(
+    `SELECT status, reserved_until FROM stock_reservations
+     WHERE order_id = $1 FOR UPDATE`,
+    [orderId],
+  );
+  const row = reservation.rows[0];
+  if (!row || row.status !== "reserved") return "none" as const;
+  if (row.reserved_until <= new Date()) {
+    await releaseReservation(client, orderId);
+    return "expired" as const;
+  }
+
+  const items = await findItems(client, orderId);
+  for (const item of items) {
+    const update = await client.query(
+      `UPDATE products SET stock_quantity = stock_quantity - $2, updated_at = NOW()
+       WHERE id::text = $1 AND stock_quantity >= $2`,
+      [item.product_id, item.quantity],
+    );
+    if (update.rowCount !== 1) {
+      throw new InventoryConflictError("Reserved inventory could not be fulfilled.");
+    }
+  }
+  await client.query(
+    `UPDATE stock_reservations SET status = 'consumed', updated_at = NOW()
+     WHERE order_id = $1`,
+    [orderId],
+  );
+  return "consumed" as const;
+}
+
+async function expireReservations(client: PoolClient) {
+  const expired = await client.query<{ order_id: string }>(
+    `SELECT order_id FROM stock_reservations
+     WHERE status = 'reserved' AND reserved_until <= NOW()
+     ORDER BY reserved_until LIMIT 500`,
+  );
+  for (const { order_id: orderId } of expired.rows) {
+    const order = await findOrder(client, orderId, true);
+    if (!(await releaseReservation(client, orderId, true))) continue;
+    if (
+      order &&
+      order.order_status === "awaiting_payment" &&
+      ["created", "pending", "authorized"].includes(order.payment_status)
+    ) {
+      await client.query(
+        `UPDATE orders SET order_status = 'cancelled', payment_status = 'cancelled',
+         updated_at = NOW() WHERE id = $1`,
+        [orderId],
+      );
+      await client.query(
+        `UPDATE payment_attempts SET status = 'cancelled', updated_at = NOW()
+         WHERE order_id = $1 AND status IN ('created', 'pending', 'authorized')`,
+        [orderId],
+      );
+      await appendStatusHistory(client, orderId, "order", order.order_status, "cancelled", "stock_reservation_expiry");
+      await appendStatusHistory(client, orderId, "payment", order.payment_status, "cancelled", "stock_reservation_expiry");
+    }
+  }
+  return expired.rowCount ?? 0;
 }
 
 class PostgresPaymentOrderStore implements PaymentOrderStore {
@@ -154,6 +293,7 @@ class PostgresPaymentOrderStore implements PaymentOrderStore {
     const id = randomUUID();
     try {
       await client.query("BEGIN");
+      await expireReservations(client);
       const result = await client.query<OrderRow>(
         `INSERT INTO orders (
            id, receipt, customer_name, customer_phone, fulfillment_method,
@@ -194,27 +334,36 @@ class PostgresPaymentOrderStore implements PaymentOrderStore {
           existingItems.length === input.lines.length &&
           existingItems.every((item, index) => item.product_id === input.lines[index]?.productId &&
             item.quantity === input.lines[index]?.quantity &&
+            item.package_size === input.lines[index]?.packageSize &&
             safeMoney(item.unit_price_in_paise) === input.lines[index]?.unitPriceInPaise);
         if (!sameRequest) throw new Error("Checkout key was already used for different order details.");
+        if (
+          existing.order_status !== "awaiting_payment" ||
+          !["created", "pending", "authorized"].includes(existing.payment_status)
+        ) {
+          throw new InventoryConflictError("This checkout reservation has expired. Start checkout again.");
+        }
         await client.query("COMMIT");
         return toOrder(existing, existingItems);
       }
       for (const line of input.lines) {
         await client.query(
           `INSERT INTO order_items (
-             order_id, product_id, product_name, quantity,
+             order_id, product_id, product_name, package_size, quantity,
              unit_price_in_paise, line_total_in_paise
-           ) VALUES ($1, $2, $3, $4, $5, $6)`,
+           ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
           [
             id,
             line.productId,
             line.productName,
+            line.packageSize,
             line.quantity,
             line.unitPriceInPaise,
-            line.unitPriceInPaise * line.quantity,
+            Number(BigInt(line.unitPriceInPaise) * BigInt(line.quantity)),
           ],
         );
       }
+      await reserveInventory(client, id, input.lines);
       await appendStatusHistory(
         client,
         id,
@@ -290,6 +439,7 @@ class PostgresPaymentOrderStore implements PaymentOrderStore {
          WHERE order_id = $1 AND status = 'created'`,
         [orderId],
       );
+      await releaseReservation(client, orderId);
       await appendStatusHistory(
         client,
         orderId,
@@ -333,7 +483,19 @@ class PostgresPaymentOrderStore implements PaymentOrderStore {
       if (!order || !order.provider_order_id) {
         throw new Error("Verified payment has no matching saved provider order.");
       }
-      const next = transitionPaymentState(paymentTransitionInput(order), paymentStatus);
+      let transitionOrder = order;
+      if (paymentStatus === "captured") {
+        if ((await consumeReservation(client, orderId)) === "expired") {
+          transitionOrder = {
+            ...order,
+            order_status: "cancelled",
+            payment_status: "cancelled",
+          };
+        }
+      } else if (paymentStatus === "failed" || paymentStatus === "cancelled") {
+        await releaseReservation(client, orderId);
+      }
+      const next = transitionPaymentState(paymentTransitionInput(transitionOrder), paymentStatus);
       const attempt = await client.query(
         `INSERT INTO payment_attempts (
            id, order_id, provider, provider_order_id, provider_payment_id,
@@ -367,10 +529,20 @@ class PostgresPaymentOrderStore implements PaymentOrderStore {
         client,
         orderId,
         "payment",
-        order.payment_status,
+        transitionOrder.payment_status,
         next.paymentStatus,
         "razorpay_signature_verification",
       );
+      if (transitionOrder.order_status !== order.order_status) {
+        await appendStatusHistory(
+          client,
+          orderId,
+          "order",
+          order.order_status,
+          transitionOrder.order_status,
+          "stock_reservation_expiry",
+        );
+      }
       await insertAudit(
         client,
         "system",
@@ -541,7 +713,19 @@ class PostgresPaymentOrderStore implements PaymentOrderStore {
           "razorpay_webhook",
         );
       } else {
-        const next = transitionPaymentState(paymentTransitionInput(order), event.paymentStatus);
+        let transitionOrder = order;
+        if (event.paymentStatus === "captured") {
+          if ((await consumeReservation(client, order.id)) === "expired") {
+            transitionOrder = {
+              ...order,
+              order_status: "cancelled",
+              payment_status: "cancelled",
+            };
+          }
+        } else if (event.paymentStatus === "failed" || event.paymentStatus === "cancelled") {
+          await releaseReservation(client, order.id);
+        }
+        const next = transitionPaymentState(paymentTransitionInput(transitionOrder), event.paymentStatus);
         const attempt = await client.query(
           `INSERT INTO payment_attempts (
              id, order_id, provider, provider_order_id, provider_payment_id,
@@ -576,10 +760,20 @@ class PostgresPaymentOrderStore implements PaymentOrderStore {
           client,
           order.id,
           "payment",
-          order.payment_status,
+          transitionOrder.payment_status,
           next.paymentStatus,
           "razorpay_webhook",
         );
+        if (transitionOrder.order_status !== order.order_status) {
+          await appendStatusHistory(
+            client,
+            order.id,
+            "order",
+            order.order_status,
+            transitionOrder.order_status,
+            "stock_reservation_expiry",
+          );
+        }
       }
 
       await client.query("COMMIT");
@@ -594,6 +788,28 @@ class PostgresPaymentOrderStore implements PaymentOrderStore {
 }
 
 const store = new PostgresPaymentOrderStore();
+
+export async function releaseExpiredStockReservations() {
+  const client = await getDatabasePool().connect();
+  try {
+    await client.query("BEGIN");
+    const released = await expireReservations(client);
+    await client.query("COMMIT");
+    return released;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function releaseOrderStockReservation(
+  client: PoolClient,
+  orderId: string,
+) {
+  return releaseReservation(client, orderId);
+}
 
 export function getPaymentOrderStore(): PaymentOrderStore | null {
   return isDatabaseConfigured() ? store : null;

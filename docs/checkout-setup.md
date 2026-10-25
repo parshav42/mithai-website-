@@ -1,5 +1,41 @@
 # Checkout setup
 
+## Product catalog and administrator management
+
+Products and categories live in PostgreSQL and are read at request time by the home,
+products, product-detail, cart, and checkout flows. Product-management changes do not
+require a deployment; the storefront refreshes its open catalog/product pages every
+30 seconds and also reads the database on navigation. Browser prices are display-only:
+payment checkout re-reads product prices, availability, and stock on the server.
+
+After confirming the target database, run `npm run db:migrate` using
+`DATABASE_URL_UNPOOLED` (preferred) or `DATABASE_URL`. Migration
+`003_product_management` adds categories, product data, package-size snapshots, and
+inventory reservations without deleting or migrating demo entries. Existing demo
+catalog examples are not copied into the products table.
+
+Product images use Vercel Blob. Configure server-only `BLOB_READ_WRITE_TOKEN` in
+local/deployment environment settings. Only authenticated administrators can upload
+JPG, PNG, or WebP images (maximum 4 MB); the server checks the content signature and
+stores only the persistent Blob URL in PostgreSQL. Until the token is configured,
+product editing still works with the built-in default image, but uploads return a
+configuration error.
+
+### Inventory reservation policy
+
+An online payment order atomically reserves current stock for 15 minutes before a
+Razorpay order is created. PostgreSQL product-row locks prevent concurrent checkout
+requests from reserving more than the available quantity. The scheduled
+`/api/cron/release-stock-reservations` endpoint runs every five minutes in Vercel and
+requires server-only `CRON_SECRET`; expired, failed, or cancelled pending reservations
+are released idempotently. Once payment is captured, the reservation is consumed and
+stock on hand is deducted in the same database transaction. A late capture after the
+reservation expires enters payment review rather than being treated as a confirmed
+order. An unpaid online order is never marked paid.
+
+Cash on delivery is not implemented in this project. WhatsApp checkout remains an
+unconfirmed enquiry and does not create an order or reserve stock.
+
 ## WhatsApp order enquiries
 
 Copy `.env.example` to `.env.local` and set
@@ -14,9 +50,9 @@ ignored. A prepared message is only shown after the customer explicitly requests
 The customer must then open WhatsApp and send the message. Opening it does not submit
 or confirm an order, and the shop must confirm availability and final details.
 
-The current catalog consists only of demonstration entries with unconfirmed prices
-and availability. Therefore, customer checkout is intentionally blocked until real
-products, prices, and availability are configured.
+WhatsApp checkout is available only for published products with a confirmed price and
+current availability. It prepares an enquiry only; the shop must confirm it before
+there is an order.
 
 ## Razorpay payment foundation
 
@@ -44,10 +80,8 @@ The intended flow is:
    payment state. A captured payment leaves the shop order in
    `awaiting_shop_confirmation`; payment success does not confirm fulfillment.
 
-Live payment creation remains disabled until all guard conditions exist. The
-PostgreSQL store is implemented, but the product catalog contains demonstration
-entries only. The endpoints therefore cannot create a real order while the catalog
-is unconfirmed. No credentials are configured here.
+Live payment creation requires a published, available product, enough stock, database
+migrations, and the Razorpay credentials below. No credentials are configured here.
 
 ### Environment variables
 
@@ -58,6 +92,9 @@ environment settings in production:
 - `RAZORPAY_KEY_SECRET`: private API key secret, server-only.
 - `RAZORPAY_WEBHOOK_SECRET`: private secret configured for the webhook endpoint,
   server-only and separate from the API key secret.
+- `BLOB_READ_WRITE_TOKEN`: Vercel Blob read/write token, server-only; needed for
+  product image uploads.
+- `CRON_SECRET`: secret sent by Vercel with the scheduled reservation cleanup request.
 
 The shop owner must create/authorize a Razorpay account, obtain its test keys from
 the Razorpay dashboard, select test mode for development, and configure a webhook
@@ -83,7 +120,7 @@ include:
 - Internal order ID and unique Razorpay receipt/provider order ID.
 - Customer name, phone, fulfillment choice, delivery address when applicable, and
   optional instructions, with a business-approved retention policy.
-- Immutable line snapshots: product ID/name, quantity, unit price in paise, total in
+- immutable line snapshots: product ID/name/package size, quantity, unit price in paise, total in
   paise, and currency (`INR`).
 - Separate order and payment status, provider payment ID, timestamps, and a unique
   webhook event ID table/index for deduplication.

@@ -105,7 +105,7 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
           <div className="mt-4 divide-y divide-gold/20">
             {order.lines.map((line) => (
               <div key={line.productId} className="flex flex-wrap justify-between gap-2 py-3 text-sm">
-                <span>{line.productName} × {line.quantity}</span>
+                <span>{line.productName}{line.packageSize ? ` · ${line.packageSize}` : ""} × {line.quantity}</span>
                 <span>{formatPrice(line.unitPriceInPaise)} each · {formatPrice(line.unitPriceInPaise * line.quantity)}</span>
               </div>
             ))}

@@ -6,11 +6,12 @@ import { Container } from "@/components/container";
 import { Footer } from "@/components/footer";
 import { Navbar } from "@/components/navbar";
 import { ProductCard } from "@/components/product-card";
-import { productCategories, products, type ProductCategory } from "@/data/products";
+import { StorefrontRefreshWatcher } from "@/components/storefront-refresh-watcher";
+import { listStorefrontCategories, listStorefrontProducts } from "@/lib/products";
 
-const featuredProducts = products.slice(0, 3);
+export const dynamic = "force-dynamic";
 
-const categoryArtwork: Record<ProductCategory, string> = {
+const categoryArtwork: Record<string, string> = {
   "kaju-katli": "50% 45%",
   ladoo: "50% 45%",
   barfi: "76% 65%",
@@ -19,9 +20,16 @@ const categoryArtwork: Record<ProductCategory, string> = {
   jalebi: "50% 52%",
 };
 
-export default function Home() {
+export default async function Home() {
+  const [products, productCategories] = await Promise.all([
+    listStorefrontProducts(),
+    listStorefrontCategories(),
+  ]);
+  const featuredProducts = products.filter((product) => product.isFeatured).slice(0, 3);
+  const homeProducts = featuredProducts.length ? featuredProducts : products.slice(0, 3);
   return (
     <>
+      <StorefrontRefreshWatcher />
       <a
         href="#main-content"
         className="sr-only z-50 bg-ivory p-3 text-maroon focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
@@ -107,8 +115,7 @@ export default function Home() {
                 <h2 className="section-heading mt-3 text-brown">Explore mithai</h2>
               </div>
               <p className="max-w-sm text-sm leading-6 text-brown/75">
-                Six familiar sweet varieties, shown as examples. The shop&apos;s actual
-                selection will be added once confirmed.
+                Browse current favorites from the shop, with live availability and pricing.
               </p>
             </div>
             <div className="mt-8 grid grid-cols-2 gap-x-4 gap-y-7 sm:mt-11 sm:grid-cols-3 sm:gap-x-6 lg:gap-x-8">
@@ -123,7 +130,7 @@ export default function Home() {
                   <figure>
                     <a
                       href={`/products?category=${category.slug}`}
-                      aria-label={`Browse ${category.name} examples`}
+                      aria-label={`Browse ${category.name}`}
                       className="block"
                     >
                     <div className="relative aspect-[1.07/1] overflow-hidden bg-[#ead9bb]">
@@ -133,7 +140,7 @@ export default function Home() {
                         fill
                         sizes="(min-width: 1024px) 30vw, (min-width: 640px) 45vw, 50vw"
                         className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"
-                        style={{ objectPosition: categoryArtwork[category.slug] }}
+                        style={{ objectPosition: categoryArtwork[category.slug] ?? "50% 50%" }}
                       />
                       <span className="absolute bottom-2 left-2 bg-ivory px-2 py-1 text-[0.5rem] font-semibold tracking-[0.1em] text-brown sm:bottom-3 sm:left-3 sm:text-[0.58rem]">
                         ILLUSTRATIVE PHOTO
@@ -166,12 +173,11 @@ export default function Home() {
                 <h2 className="section-heading mt-3 text-brown">Sweet things to discover</h2>
               </div>
               <p className="max-w-sm text-sm leading-6 text-brown/75">
-                These are illustrative examples, not a confirmed product list. Product
-                details and prices will appear when supplied by the shop.
+                Our product selection is managed directly by the shop and reflects current availability.
               </p>
             </div>
             <div className="mt-8 grid grid-cols-1 gap-x-5 gap-y-8 sm:mt-11 sm:grid-cols-3 sm:gap-x-6 lg:gap-x-8">
-              {featuredProducts.map((product) => (
+              {homeProducts.map((product) => (
                 <ProductCard key={product.id} product={product} />
               ))}
             </div>

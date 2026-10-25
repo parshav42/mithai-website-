@@ -150,6 +150,13 @@ export function validateCheckoutSubmission(
       }
 
       const quantity = rawItem.quantity;
+      if (
+        product.stockQuantity !== undefined &&
+        quantity > product.stockQuantity
+      ) {
+        errors.items = `${product.name} does not have enough stock for that quantity.`;
+        continue;
+      }
       lines.push({ product, quantity });
       subtotalInPaise += BigInt(product.priceInPaise) * BigInt(quantity);
     }

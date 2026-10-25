@@ -2,7 +2,7 @@ import type { QueryResultRow } from "pg";
 import { randomUUID } from "node:crypto";
 import { getDatabasePool } from "../db.ts";
 import type { FulfillmentStatus, OrderStatus, PaymentStatus } from "../payments/order-model.ts";
-import { appendStatusHistory, insertAudit } from "../payments/order-store.ts";
+import { appendStatusHistory, insertAudit, releaseOrderStockReservation } from "../payments/order-store.ts";
 import { parseCustomDateRange } from "./date-range.ts";
 import { sendConfirmationSms } from "../notifications/sms.ts";
 import {
@@ -42,6 +42,7 @@ type OrderDbRow = QueryResultRow & {
   lines: Array<{
     productId: string;
     productName: string;
+    packageSize?: string;
     quantity: number;
     unitPriceInPaise: string | number;
   }>;
@@ -83,6 +84,7 @@ const ORDER_SELECT = `
       SELECT json_agg(json_build_object(
         'productId', product_id,
         'productName', product_name,
+        'packageSize', package_size,
         'quantity', quantity,
         'unitPriceInPaise', unit_price_in_paise
       ) ORDER BY order_items.id)
@@ -361,6 +363,8 @@ export async function updateShopOrderStatus(
          ON CONFLICT (order_id, notification_type) DO NOTHING`,
         [randomUUID(), orderId],
       );
+    } else if (nextStatus === "cancelled") {
+      await releaseOrderStockReservation(client, orderId);
     }
     await client.query("COMMIT");
     return { success: true, status: nextStatus };

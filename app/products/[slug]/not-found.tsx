@@ -12,7 +12,7 @@ export default function ProductNotFound() {
           <p className="eyebrow">Not in this collection</p>
           <h1 className="mt-3 font-display text-4xl text-maroon">We couldn&apos;t find that sweet.</h1>
           <p className="mx-auto mt-4 max-w-lg text-sm leading-6 text-brown/80">
-            This item may have moved or is not part of the current demonstration catalog.
+            This item may have moved or is no longer listed by the shop.
           </p>
           <Link
             href="/products"

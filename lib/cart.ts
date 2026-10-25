@@ -51,7 +51,8 @@ export function updateCart(
 
   if (action.type === "add") {
     const quantity = current[action.productId] ?? 0;
-    if (quantity >= MAX_CART_QUANTITY) return current;
+    const stockLimit = product.stockQuantity ?? MAX_CART_QUANTITY;
+    if (quantity >= Math.min(MAX_CART_QUANTITY, stockLimit)) return current;
     return { ...current, [action.productId]: quantity + 1 };
   }
 
@@ -59,6 +60,12 @@ export function updateCart(
     !Number.isInteger(action.quantity) ||
     action.quantity < 1 ||
     action.quantity > MAX_CART_QUANTITY
+  ) {
+    return current;
+  }
+  if (
+    product.stockQuantity !== undefined &&
+    action.quantity > product.stockQuantity
   ) {
     return current;
   }

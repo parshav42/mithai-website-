@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/release-stock-reservations",
+      "schedule": "*/5 * * * *"
+    }
+  ]
+}

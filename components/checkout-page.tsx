@@ -9,10 +9,9 @@ import { Container } from "@/components/container";
 import { useCart } from "@/components/cart-provider";
 import {
   formatPrice,
-  getProductById,
   isPurchasable,
-  products,
 } from "@/data/products";
+import type { Product } from "@/data/products";
 import {
   type CheckoutField,
   type CheckoutFieldErrors,
@@ -80,7 +79,7 @@ export function CheckoutPage({
   whatsappConfigured,
   paymentSetupStatus,
 }: CheckoutPageProps) {
-  const { items, itemCount, subtotalInPaise, isReady } = useCart();
+  const { items, itemCount, subtotalInPaise, isReady, products } = useCart();
   const [customerName, setCustomerName] = useState("");
   const [phone, setPhone] = useState("");
   const [fulfillment, setFulfillment] = useState<FulfillmentMethod>("delivery");
@@ -108,11 +107,11 @@ export function CheckoutPage({
 
   const cartLines = Object.entries(items)
     .map(([productId, quantity]) => ({
-      product: getProductById(productId),
+      product: products.find((item) => item.id === productId),
       quantity,
     }))
     .filter(
-      (line): line is { product: (typeof products)[number]; quantity: number } =>
+      (line): line is { product: Product; quantity: number } =>
         Boolean(line.product),
     );
   const unavailableItems = cartLines.filter((line) => !isPurchasable(line.product));
@@ -363,8 +362,7 @@ export function CheckoutPage({
             role="status"
             className="mt-7 border border-gold/60 bg-ivory px-4 py-3 text-sm leading-6 text-brown"
           >
-            Ordering is unavailable for this cart because one or more demonstration
-            products still need confirmed prices and availability from the shop.
+            Ordering is unavailable because a product in your cart is unavailable, out of stock, or has changed. Review your cart and try again.
           </div>
         )}
 

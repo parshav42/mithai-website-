@@ -28,9 +28,17 @@ export type PaymentStatus =
   | "partially_refunded"
   | "refunded";
 
+export class InventoryConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InventoryConflictError";
+  }
+}
+
 export type PaymentOrderLine = {
   productId: string;
   productName: string;
+  packageSize: string;
   quantity: number;
   unitPriceInPaise: number;
 };

@@ -11,6 +11,7 @@ import {
 import { X } from "lucide-react";
 import {
   addCartItem,
+  configureCartCatalog,
   dismissCartNotice,
   getCartSnapshot,
   getServerCartSnapshot,
@@ -19,9 +20,11 @@ import {
   subscribeToCart,
 } from "@/lib/cart-store";
 import { calculateSubtotal, countCartItems } from "@/lib/cart";
-import { products } from "@/data/products";
+import type { Product } from "@/data/products";
+import { useEffect } from "react";
 
 type CartContextValue = {
+  products: Product[];
   items: ReturnType<typeof getCartSnapshot>["items"];
   itemCount: number;
   subtotalInPaise: bigint;
@@ -35,22 +38,24 @@ type CartContextValue = {
 
 const CartContext = createContext<CartContextValue | null>(null);
 
-export function CartProvider({ children }: { children: ReactNode }) {
+export function CartProvider({ children, products }: { children: ReactNode; products: Product[] }) {
+  useEffect(() => configureCartCatalog(products), [products]);
   const snapshot = useSyncExternalStore(
     subscribeToCart,
     getCartSnapshot,
     getServerCartSnapshot,
   );
-  const addItem = useCallback((productId: string) => addCartItem(productId), []);
+  const addItem = useCallback((productId: string) => addCartItem(productId, products), [products]);
   const setQuantity = useCallback(
-    (productId: string, quantity: number) => setCartQuantity(productId, quantity),
-    [],
+    (productId: string, quantity: number) => setCartQuantity(productId, quantity, products),
+    [products],
   );
-  const removeItem = useCallback((productId: string) => removeCartItem(productId), []);
+  const removeItem = useCallback((productId: string) => removeCartItem(productId, products), [products]);
   const clearNotice = useCallback(() => dismissCartNotice(), []);
 
   const value = useMemo<CartContextValue>(
     () => ({
+      products,
       items: snapshot.items,
       itemCount: countCartItems(snapshot.items),
       subtotalInPaise: calculateSubtotal(snapshot.items, products),
@@ -61,7 +66,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       removeItem,
       clearNotice,
     }),
-    [addItem, clearNotice, removeItem, setQuantity, snapshot],
+    [addItem, clearNotice, removeItem, setQuantity, snapshot, products],
   );
 
   return (

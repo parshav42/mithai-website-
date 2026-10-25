@@ -4,6 +4,7 @@ import {
 } from "../checkout.ts";
 import type { Product } from "../../data/products.ts";
 import type { PaymentOrderStore } from "./order-model.ts";
+import { InventoryConflictError } from "./order-model.ts";
 import {
   isValidPaymentAmount,
   type RazorpaySdkFactory,
@@ -19,7 +20,7 @@ export type CreatePaymentOrderResult =
       currency: "INR";
       keyId: string;
     }
-  | { success: false; status: 400 | 422 | 503 | 502; error: string };
+  | { success: false; status: 400 | 409 | 422 | 503 | 502; error: string };
 
 export async function createPaymentOrder(
   submission: unknown,
@@ -85,6 +86,7 @@ export async function createPaymentOrder(
       lines: validation.checkout.lines.map(({ product, quantity }) => ({
         productId: product.id,
         productName: product.name,
+        packageSize: product.packageSize ?? "Standard",
         quantity,
         unitPriceInPaise: product.priceInPaise,
       })),
@@ -136,7 +138,10 @@ export async function createPaymentOrder(
       currency: providerOrder.currency,
       keyId: environment.NEXT_PUBLIC_RAZORPAY_KEY_ID,
     };
-  } catch {
+  } catch (error) {
+    if (error instanceof InventoryConflictError) {
+      return { success: false, status: 409, error: error.message };
+    }
     if (orderId) {
       await store.markProviderOrderCreationFailed(orderId);
     }

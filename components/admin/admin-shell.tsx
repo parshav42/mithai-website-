@@ -6,6 +6,8 @@ import {
   CreditCard,
   LayoutDashboard,
   PackageCheck,
+  Package,
+  Boxes,
   Settings,
   LogOut,
   FileText,
@@ -14,6 +16,8 @@ import { administratorSignOut } from "@/app/admin/actions";
 
 const navigation: Array<{ href: Route; label: string; icon: typeof LayoutDashboard }> = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
+  { href: "/admin/products" as Route, label: "Products", icon: Package },
+  { href: "/admin/products?view=inventory" as Route, label: "Inventory", icon: Boxes },
   { href: "/admin/orders" as Route, label: "Orders", icon: ClipboardList },
   { href: "/admin/payments" as Route, label: "Payments", icon: CreditCard },
   { href: "/admin/reports" as Route, label: "Reports", icon: FileText },

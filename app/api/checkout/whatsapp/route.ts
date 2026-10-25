@@ -1,5 +1,5 @@
-import { products } from "@/data/products";
 import { prepareWhatsAppMessage } from "@/lib/checkout";
+import { listStorefrontProducts } from "@/lib/products";
 
 const MAX_REQUEST_BYTES = 16_384;
 
@@ -20,7 +20,7 @@ export async function POST(request: Request) {
 
   const result = prepareWhatsAppMessage(
     parsedBody.body,
-    products,
+    await listStorefrontProducts(),
     configuredNumber,
   );
   if (!result.success) {

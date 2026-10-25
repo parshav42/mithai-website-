@@ -6,11 +6,10 @@ import { AddToCartButton } from "@/components/add-to-cart-button";
 import { Container } from "@/components/container";
 import { Footer } from "@/components/footer";
 import { Navbar } from "@/components/navbar";
-import { getProductBySlug, productCategories, products } from "@/data/products";
+import { StorefrontRefreshWatcher } from "@/components/storefront-refresh-watcher";
+import { getStorefrontProductBySlug } from "@/lib/products";
 
-export function generateStaticParams() {
-  return products.map((product) => ({ slug: product.slug }));
-}
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({
   params,
@@ -18,7 +17,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const product = getProductBySlug(slug);
+  const product = await getStorefrontProductBySlug(slug);
   if (!product) return { title: "Sweet not found | Mithai House" };
 
   return {
@@ -33,13 +32,12 @@ export default async function ProductPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const product = getProductBySlug(slug);
+  const product = await getStorefrontProductBySlug(slug);
   if (!product) notFound();
-
-  const category = productCategories.find((item) => item.slug === product.category);
 
   return (
     <>
+      <StorefrontRefreshWatcher />
       <Navbar />
       <main id="main-content" className="bg-white">
         <Container className="py-8 sm:py-12">
@@ -59,12 +57,10 @@ export default async function ProductPage({
                 sizes="(min-width: 768px) 50vw, 100vw"
                 className="object-cover"
               />
-              <span className="absolute bottom-3 left-3 bg-ivory px-2.5 py-1.5 text-[0.58rem] font-semibold tracking-[0.1em] text-brown">
-                DEMONSTRATION ITEM · ILLUSTRATIVE PHOTO
-              </span>
+              {product.stockQuantity === 0 ? <span className="absolute bottom-3 left-3 bg-ivory px-2.5 py-1.5 text-[0.58rem] font-semibold tracking-[0.1em] text-brown">OUT OF STOCK</span> : null}
             </figure>
             <div className="py-1 sm:py-5">
-              <p className="eyebrow">{category?.name ?? "Mithai"}</p>
+              <p className="eyebrow">{product.categoryName ?? "Mithai"}</p>
               <h1 className="mt-3 font-display text-4xl leading-tight tracking-[-0.04em] text-maroon sm:text-5xl">
                 {product.name}
               </h1>
@@ -72,7 +68,9 @@ export default async function ProductPage({
 
               <div className="mt-7 border-y border-gold/40 py-5">
                 <p className="text-sm font-semibold text-maroon">
-                  {product.availability === "unavailable"
+                  {product.stockQuantity === 0
+                    ? "Out of stock"
+                    : product.availability === "unavailable"
                     ? "Currently unavailable"
                     : product.isDemonstration
                       ? "Demonstration listing · not confirmed shop inventory"
@@ -81,9 +79,8 @@ export default async function ProductPage({
                         : "Availability pending"}
                 </p>
                 <p className="mt-2 text-sm leading-6 text-brown/75">
-                  {product.isDemonstration
-                    ? "Price, ingredients, pack size, and availability are pending confirmation from the shop."
-                    : "Product details are displayed as supplied by the shop. Check product information before ordering."}
+                  {product.packageSize ? `Package size: ${product.packageSize}. ` : ""}
+                  {product.stockQuantity === 0 ? "Please check back later for availability." : `Stock available: ${product.stockQuantity}.`}
                 </p>
               </div>
 
@@ -91,9 +88,7 @@ export default async function ProductPage({
                 <AddToCartButton product={product} />
               </div>
               <p className="mt-5 text-xs leading-5 text-brown/65">
-                Cart totals are informational only. Checkout availability depends on
-                confirmed shop products and contact configuration; online payments are
-                not yet set up.
+                Checkout checks the current price and stock against the shop inventory before an order is created.
               </p>
             </div>
           </div>

@@ -9,7 +9,11 @@ loadEnvConfig(process.cwd());
 
 const { Pool } = pg;
 const migrationDirectory = resolve(dirname(fileURLToPath(import.meta.url)), "migrations");
-const migrationVersions = ["001_admin_orders", "002_order_notifications"];
+const migrationVersions = [
+  "001_admin_orders",
+  "002_order_notifications",
+  "003_product_management",
+];
 
 const connectionString =
   process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL;

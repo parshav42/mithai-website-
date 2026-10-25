@@ -1,8 +1,8 @@
-import { products } from "@/data/products";
 import { createPaymentOrder } from "@/lib/payments/order-service";
 import { getPaymentOrderStore } from "@/lib/payments/order-store";
 import { readRequestText } from "@/lib/payments/request-body";
 import { getRazorpayEnvironment } from "@/lib/payments/provider";
+import { listStorefrontProducts } from "@/lib/products";
 
 export async function POST(request: Request) {
   const headerKey = request.headers.get("Idempotency-Key");
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
   const result = await createPaymentOrder(submission, {
     idempotencyKey,
     environment: getRazorpayEnvironment(),
-    catalog: products,
+    catalog: await listStorefrontProducts(),
     store: getPaymentOrderStore(),
   });
   if (!result.success) {

@@ -7,7 +7,7 @@ export const productCategories = [
   { slug: "jalebi", name: "Jalebi" },
 ] as const;
 
-export type ProductCategory = (typeof productCategories)[number]["slug"];
+export type ProductCategory = string;
 export type ProductAvailability = "available" | "unavailable" | "unconfirmed";
 
 export type Product = {
@@ -21,6 +21,13 @@ export type Product = {
   availability: ProductAvailability;
   priceInPaise: number | null;
   isDemonstration: boolean;
+  packageSize?: string;
+  originalPriceInPaise?: number | null;
+  stockQuantity?: number;
+  stockOnHand?: number;
+  isFeatured?: boolean;
+  categoryName?: string;
+  archived?: boolean;
 };
 
 export const products: readonly Product[] = [
@@ -130,6 +137,7 @@ export function isPurchasable(
   return (
     !product.isDemonstration &&
     product.availability === "available" &&
+    (product.stockQuantity === undefined || product.stockQuantity > 0) &&
     product.priceInPaise !== null &&
     Number.isSafeInteger(product.priceInPaise) &&
     product.priceInPaise > 0 &&
