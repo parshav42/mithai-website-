@@ -4,7 +4,7 @@ import type {
   PaymentOrderStore,
   ProcessProviderEventResult,
   VerifiedProviderEvent,
-} from "@/lib/payments/order-model";
+} from "./order-model.ts";
 
 export type PaymentTransition = {
   orderStatus: OrderStatus;

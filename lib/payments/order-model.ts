@@ -1,5 +1,5 @@
-import type { FulfillmentMethod } from "@/lib/checkout";
-import type { PaymentCurrency } from "@/lib/payments/provider";
+import type { FulfillmentMethod } from "../checkout.ts";
+import type { PaymentCurrency } from "./provider.ts";
 
 export type OrderStatus =
   | "awaiting_payment"

@@ -1,15 +1,15 @@
 import { randomUUID } from "node:crypto";
 import {
   validateCheckoutSubmission,
-} from "@/lib/checkout";
-import type { Product } from "@/data/products";
-import type { PaymentOrderStore } from "@/lib/payments/order-model";
+} from "../checkout.ts";
+import type { Product } from "../../data/products.ts";
+import type { PaymentOrderStore } from "./order-model.ts";
 import {
   isValidPaymentAmount,
   type RazorpaySdkFactory,
-} from "@/lib/payments/razorpay";
-import { createRazorpayPaymentProvider } from "@/lib/payments/razorpay";
-import type { RazorpayEnvironment } from "@/lib/payments/provider";
+} from "./razorpay.ts";
+import { createRazorpayPaymentProvider } from "./razorpay.ts";
+import type { RazorpayEnvironment } from "./provider.ts";
 
 export type CreatePaymentOrderResult =
   | {

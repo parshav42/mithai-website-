@@ -1,10 +1,10 @@
 import "server-only";
-import type { PaymentOrderStore } from "@/lib/payments/order-model";
+import type { PaymentOrderStore } from "./order-model.ts";
 import type {
   PaymentProvider,
   PaymentVerification,
   RazorpayEnvironment,
-} from "@/lib/payments/provider";
+} from "./provider.ts";
 
 export type VerifyPaymentResult =
   | {

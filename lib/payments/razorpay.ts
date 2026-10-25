@@ -6,7 +6,7 @@ import type {
   PaymentProvider,
   PaymentVerification,
   ProviderPayment,
-} from "@/lib/payments/provider";
+} from "./provider.ts";
 
 type RazorpayOrderResponse = {
   id: string;

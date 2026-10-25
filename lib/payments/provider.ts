@@ -1,4 +1,4 @@
-import { isPurchasable, type Product } from "@/data/products";
+import { isPurchasable, type Product } from "../../data/products.ts";
 
 export type PaymentCurrency = "INR";
 export type PaymentSetupStatus =
