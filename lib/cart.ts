@@ -1,4 +1,4 @@
-import { isPurchasable, type Product } from "../data/products";
+import { isPurchasable, type Product } from "../data/products.ts";
 
 export type CartItems = Record<string, number>;
 
@@ -70,12 +70,8 @@ export function calculateSubtotal(items: CartItems, catalog: readonly Product[])
   return catalog.reduce((subtotal, product) => {
     if (!isPurchasable(product)) return subtotal;
     const quantity = items[product.id] ?? 0;
-    const lineTotal = product.priceInPaise * quantity;
-    if (!Number.isSafeInteger(lineTotal) || !Number.isSafeInteger(subtotal + lineTotal)) {
-      return subtotal;
-    }
-    return subtotal + lineTotal;
-  }, 0);
+    return subtotal + BigInt(product.priceInPaise) * BigInt(quantity);
+  }, 0n);
 }
 
 export function countCartItems(items: CartItems) {
